@@ -11,23 +11,62 @@
 #include <errno.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
+
 int ConexaoRawSocket(char *device)
 {
   int soquete;
   struct ifreq ir;
+  struct sockaddr_ll endereco;
   struct packet_mreq mr;
+
   soquete = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));  	/*cria socket*/
   if (soquete == -1) {
-    printf("Erro no Socket= %s\n",strerror(errno));
+    printf("Erro no Socket\n");
     exit(-1);
   }
-  
-  unsigned char *buffer = (unsigned char *) malloc(65536); //to receive data
-  memset(buffer,0,65536);
+
+  // memset(&ir, 0, sizeof(struct ifreq));  	/*dispositivo eth0*/
+  // memcpy(ir.ifr_name, device, sizeof(device));
+  // if (ioctl(soquete, SIOCGIFINDEX, &ir) == -1) {
+  //   printf("Erro no ioctl\n");
+  //   exit(-1);
+  // }
+	
+
+  // memset(&endereco, 0, sizeof(endereco)); 	/*IP do dispositivo*/
+  // endereco.sll_family = AF_PACKET;
+  // endereco.sll_protocol = htons(ETH_P_ALL);
+  // endereco.sll_ifindex = ir.ifr_ifindex;
+  // if (bind(soquete, (struct sockaddr *)&endereco, sizeof(endereco)) == -1) {
+  //   printf("Erro no bind\n");
+  //   exit(-1);
+  // }
+
+
+  // memset(&mr, 0, sizeof(mr));          /*Modo Promiscuo*/
+  // mr.mr_ifindex = ir.ifr_ifindex;
+  // mr.mr_type = PACKET_MR_PROMISC;
+  // if (setsockopt(soquete, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr)) == -1)	{
+  //   printf("Erro ao fazer setsockopt\n");
+  //   exit(-1);
+  // }
+
+  return soquete;
+}
+
+int main (char argc, char argv[]){
+  int sock_r;
+  sock_r = ConexaoRawSocket("enp7s0f0");
+
+  unsigned char *buffer = (unsigned char *) malloc(68); //to receive data
+  memset(buffer,0,68);
   struct sockaddr saddr;
   int saddr_len = sizeof (saddr);
+  
   //Receive a network packet and copy in to buffer
-  int buflen=recvfrom(soquete,buffer,65536,0,&saddr,(socklen_t *)&saddr_len);
+  int flag =1;
+  int buflen=recvfrom(sock_r,buffer,68,0,&saddr,(socklen_t *)&saddr_len);
+  printf("teste%d\n",buflen);
   if(buflen<0){
     printf("error in reading recvfrom function\n");
     return -1;
@@ -69,23 +108,20 @@ int ConexaoRawSocket(char *device)
   unsigned char * data = (buffer + iphdrlen + sizeof(struct ethhdr) + sizeof(struct udphdr));
   int remaining_data = buflen - (iphdrlen + sizeof(struct ethhdr) + sizeof(struct udphdr));
  
-  for(int i=0;i<remaining_data;i++)
-  {
-  if(i!=0 && i%16==0)
-  fprintf(stdout,"\n");
-  fprintf(stdout,"%.2X",data[i]);
+  for(int i=0;i<remaining_data;i++){
+    if(i!=0 && i%16==0)
+      fprintf(stdout,"\n");
+    fprintf(stdout,"%.2X",data[i]);
   }
   fprintf(stdout,"\n");
-  
-  return soquete;
 }
 
-int main (char argc, char argv[]){
-  int sock_r;
-  sock_r = ConexaoRawSocket("enp7s0f0");
-  
-  
-  
-
-
-}
+//while(flag){
+  //  buflen=recvfrom(soquete,buffer,1,0,&saddr,(socklen_t *)&saddr_len);
+  //  if(buflen<0){
+  //    printf("error in reading recvfrom function\n");
+  //    return -1;
+  //  }
+  //  if (buffer="0111110")
+  //    func();
+  //}

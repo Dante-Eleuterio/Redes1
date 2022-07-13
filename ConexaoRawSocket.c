@@ -11,7 +11,7 @@
 #include <errno.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
-
+unsigned char *sendbuff;
 unsigned short checksum(unsigned short* buff, int _16bitword)
 {
   unsigned long sum;
@@ -60,17 +60,11 @@ int ConexaoRawSocket(char *device)
   
 
   /*ETHERNET HEADER*/
-  unsigned char *sendbuff= (unsigned char*)malloc(64);
+  sendbuff= (unsigned char*)malloc(64);
   memset(sendbuff,0,64);
   struct ethhdr *eth = (struct ethhdr *)(sendbuff);
 
-  eth->h_source[0] = (unsigned char)(ir.ifr_hwaddr.sa_data[0]);
-  eth->h_source[1] = (unsigned char)(ir.ifr_hwaddr.sa_data[1]);
-  eth->h_source[2] = (unsigned char)(ir.ifr_hwaddr.sa_data[2]);
-  eth->h_source[3] = (unsigned char)(ir.ifr_hwaddr.sa_data[3]);
-  eth->h_source[4] = (unsigned char)(ir.ifr_hwaddr.sa_data[4]);
-  eth->h_source[5] = (unsigned char)(ir.ifr_hwaddr.sa_data[5]);
-
+  
   /* filling destination mac. DESTMAC0 to DESTMAC5 are macro having octets of mac address. */
   eth->h_dest[0] = 0x70;
   eth->h_dest[1] = 0x85;
@@ -78,16 +72,28 @@ int ConexaoRawSocket(char *device)
   eth->h_dest[3] = 0x08;
   eth->h_dest[4] = 0x88;
   eth->h_dest[5] = 0xb7;
- 
+  
+  eth->h_source[0] = (unsigned char)(ir.ifr_hwaddr.sa_data[0]);
+  eth->h_source[1] = (unsigned char)(ir.ifr_hwaddr.sa_data[1]);
+  eth->h_source[2] = (unsigned char)(ir.ifr_hwaddr.sa_data[2]);
+  eth->h_source[3] = (unsigned char)(ir.ifr_hwaddr.sa_data[3]);
+  eth->h_source[4] = (unsigned char)(ir.ifr_hwaddr.sa_data[4]);
+  eth->h_source[5] = (unsigned char)(ir.ifr_hwaddr.sa_data[5]);
+
+
   eth->h_proto = htons(ETH_P_IP); //means next header will be IP header
  
   /* end of ethernet header */
   int total_len=sizeof(struct ethhdr);
-
   /*IP HEADER*/
   struct iphdr *iph = (struct iphdr*)(sendbuff + sizeof(struct ethhdr));
   iph->ihl = 5;
+  for(int i=0;i<15;i++)
+    printf("i:%d data: %d\n",i, sendbuff[i]);
+  printf("--------------\n");
   iph->version = 4;
+  for(int i=0;i<16;i++)
+    printf("i:%d data: %.2X\n",i, sendbuff[i]);
   iph->tos = 16;
   iph->id = htons(10201);
   iph->ttl = 64;
@@ -108,10 +114,10 @@ int ConexaoRawSocket(char *device)
   /*End of udp header*/
 
   sendbuff[total_len++] = 0xBB;
-  sendbuff[total_len++] = 0xAA;
-  sendbuff[total_len++] = 0xDD;
-  sendbuff[total_len++] = 0xCC;
-  sendbuff[total_len++] = 0xEE;
+  sendbuff[total_len++] = 0xBB;
+  sendbuff[total_len++] = 0xBB;
+  sendbuff[total_len++] = 0xBB;
+  sendbuff[total_len++] = 0xBB;
   
   uh->len = htons((total_len - sizeof(struct iphdr) - sizeof(struct ethhdr))); //UDP length field
   printf("uh%d\n",uh->len);
@@ -129,18 +135,19 @@ int ConexaoRawSocket(char *device)
   //   exit(-1);
   // }
 
-  printf("\n%ld\n",sendto(soquete,sendbuff,64,0,(const struct sockaddr*)&endereco,sizeof(struct sockaddr_ll)));
   
   return soquete;
 }
 
 int main(int argc, char const *argv[])
 {
-  int send_len= ConexaoRawSocket("enp7s0f0");
+  int send_len= ConexaoRawSocket("lo");
   if(send_len<0)
   {
     printf("error in sending....sendlen=%d....errno=%d\n",send_len,errno);
     return -1;
   }
+  printf("\n%ld\n",sendto(send_len,sendbuff,64,0,NULL,sizeof(struct sockaddr_ll)));
+
   return 0;
 }
