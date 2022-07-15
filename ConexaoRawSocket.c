@@ -9,19 +9,16 @@
 #include <stdio.h>
 #include <arpa/inet.h>
 #include <errno.h>
-#include <linux/ip.h>
-#include <linux/udp.h>
-unsigned char *sendbuff;
-unsigned short checksum(unsigned short* buff, int _16bitword)
-{
-  unsigned long sum;
-  for(sum=0;_16bitword>0;_16bitword--)
-  sum+=htons(*(buff)++);
-  sum = ((sum >> 16) + (sum & 0xFFFF));
-  sum += (sum>>16);
-  return (unsigned short)(~sum);
-}
- 
+
+#define BYTES 15
+#pragma pack(1)
+struct header{
+  unsigned int  mi : 8;
+  unsigned int  tamanho:6;
+  unsigned int  sequencia:4;
+  unsigned int  tipo:6;
+};
+typedef struct header header;
 int ConexaoRawSocket(char *device)
 {
   int soquete;
@@ -59,7 +56,7 @@ int ConexaoRawSocket(char *device)
   }
 
   return soquete;
-
+}
   // struct ifreq ifreq_c;
   // memset(&ifreq_c,0,sizeof(ifreq_c));
   // strncpy(ifreq_c.ifr_name,device,IFNAMSIZ-1);//giving name of Interface
@@ -139,8 +136,29 @@ int ConexaoRawSocket(char *device)
 
   
   // return soquete;
+void constroi_buffer(int soquete){
+  unsigned char *sendbuff;
+  sendbuff= (unsigned char*)malloc(BYTES);
+  memset(sendbuff,0,BYTES);
+  header *eth = (header *)(sendbuff);
+  eth->mi=126;
+  eth->tamanho=11;
+  eth->sequencia=8;
+  eth->tipo=63;
+  int total_len=sizeof(header);
+  printf("size %d\n",total_len);
+  for (int i = total_len; i < BYTES-1; i++)
+  {
+    sendbuff[i] = 33;
+  }
+  sendbuff[BYTES-1]=111;
+  for(int j=0;j<BYTES;j++){
+    printf("%d ",sendbuff[j]);
+  }
+  printf("\n%ld\n",sendto(soquete,sendbuff,BYTES,0,NULL,0));
+
+  
 }
-#define BYTES 14
 
 int main(int argc, char const *argv[])
 {
@@ -150,15 +168,8 @@ int main(int argc, char const *argv[])
     printf("error in sending....sendlen=%d....errno=%d\n",send_len,errno);
     return -1;
   }
+  constroi_buffer(send_len);
 
-  sendbuff= (unsigned char*)malloc(BYTES);
-  memset(sendbuff,0,BYTES);
-  sendbuff[0] = 0xBB;
-  sendbuff[1] = 0xBB;
-  sendbuff[2] = 0xBB;
-  sendbuff[3] = 0xBB;
-  sendbuff[4] = 0xBB;
-  printf("\n%ld\n",sendto(send_len,sendbuff,BYTES,0,NULL,sizeof(struct sockaddr_ll)));
 
   return 0;
 }
