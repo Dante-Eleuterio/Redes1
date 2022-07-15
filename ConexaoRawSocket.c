@@ -49,95 +49,98 @@ int ConexaoRawSocket(char *device)
     printf("Erro no bind\n");
     exit(-1);
   }
-  printf("%d\n",endereco.sll_ifindex);
 
-  struct ifreq ifreq_c;
-  memset(&ifreq_c,0,sizeof(ifreq_c));
-  strncpy(ifreq_c.ifr_name,device,IFNAMSIZ-1);//giving name of Interface
-  
-  if((ioctl(soquete,SIOCGIFHWADDR,&ifreq_c))<0) //getting MAC Address
-    printf("error in SIOCGIFHWADDR ioctl reading");
-  
+  memset(&mr, 0, sizeof(mr));          /*Modo Promiscuo*/
+  mr.mr_ifindex = ir.ifr_ifindex;
+  mr.mr_type = PACKET_MR_PROMISC;
+  if (setsockopt(soquete, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr)) == -1)	{
+    printf("Erro ao fazer setsockopt\n");
+    exit(-1);
+  }
 
-  /*ETHERNET HEADER*/
-  sendbuff= (unsigned char*)malloc(64);
-  memset(sendbuff,0,64);
-  struct ethhdr *eth = (struct ethhdr *)(sendbuff);
-
-  
-  /* filling destination mac. DESTMAC0 to DESTMAC5 are macro having octets of mac address. */
-  eth->h_dest[0] = 0x70;
-  eth->h_dest[1] = 0x85;
-  eth->h_dest[2] = 0xc2;
-  eth->h_dest[3] = 0x08;
-  eth->h_dest[4] = 0x88;
-  eth->h_dest[5] = 0xb7;
-  
-  eth->h_source[0] = (unsigned char)(ir.ifr_hwaddr.sa_data[0]);
-  eth->h_source[1] = (unsigned char)(ir.ifr_hwaddr.sa_data[1]);
-  eth->h_source[2] = (unsigned char)(ir.ifr_hwaddr.sa_data[2]);
-  eth->h_source[3] = (unsigned char)(ir.ifr_hwaddr.sa_data[3]);
-  eth->h_source[4] = (unsigned char)(ir.ifr_hwaddr.sa_data[4]);
-  eth->h_source[5] = (unsigned char)(ir.ifr_hwaddr.sa_data[5]);
-
-
-  eth->h_proto = htons(ETH_P_IP); //means next header will be IP header
- 
-  /* end of ethernet header */
-  int total_len=sizeof(struct ethhdr);
-  /*IP HEADER*/
-  struct iphdr *iph = (struct iphdr*)(sendbuff + sizeof(struct ethhdr));
-  iph->ihl = 5;
-  for(int i=0;i<15;i++)
-    printf("i:%d data: %d\n",i, sendbuff[i]);
-  printf("--------------\n");
-  iph->version = 4;
-  for(int i=0;i<16;i++)
-    printf("i:%d data: %.2X\n",i, sendbuff[i]);
-  iph->tos = 16;
-  iph->id = htons(10201);
-  iph->ttl = 64;
-  iph->protocol = 17;
-  iph->saddr = inet_addr(inet_ntoa((((struct sockaddr_in *)&(ir.ifr_addr))->sin_addr)));
-  iph->daddr = inet_addr("127.0.1.1"); // put destination IP address
- 
-  total_len += sizeof(struct iphdr);
-  /*end of ip header*/
-
-  /*UDP header*/
-  struct udphdr *uh = (struct udphdr *)(sendbuff + sizeof(struct iphdr) + sizeof(struct ethhdr));
-  uh->source = htons(23451);
-  uh->dest = htons(23452);
-  uh->check = 0;
-
-  total_len+= sizeof(struct udphdr);
-  /*End of udp header*/
-
-  sendbuff[total_len++] = 0xBB;
-  sendbuff[total_len++] = 0xBB;
-  sendbuff[total_len++] = 0xBB;
-  sendbuff[total_len++] = 0xBB;
-  sendbuff[total_len++] = 0xBB;
-  
-  uh->len = htons((total_len - sizeof(struct iphdr) - sizeof(struct ethhdr))); //UDP length field
-  printf("uh%d\n",uh->len);
-  iph->tot_len = htons(total_len - sizeof(struct ethhdr));//IP length field
-  iph->check = checksum((unsigned short*)(sendbuff + sizeof(struct ethhdr)), (sizeof(struct iphdr)/2));
-  
-  for(int i=0;i<total_len;i++)
-    printf("%.2X",sendbuff[i]);
-
-  // memset(&mr, 0, sizeof(mr));          /*Modo Promiscuo*/
-  // mr.mr_ifindex = ir.ifr_ifindex;
-  // mr.mr_type = PACKET_MR_PROMISC;
-  // if (setsockopt(soquete, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr)) == -1)	{
-  //   printf("Erro ao fazer setsockopt\n");
-  //   exit(-1);
-  // }
-
-  
   return soquete;
+
+  // struct ifreq ifreq_c;
+  // memset(&ifreq_c,0,sizeof(ifreq_c));
+  // strncpy(ifreq_c.ifr_name,device,IFNAMSIZ-1);//giving name of Interface
+  
+  // if((ioctl(soquete,SIOCGIFHWADDR,&ifreq_c))<0) //getting MAC Address
+  //   printf("error in SIOCGIFHWADDR ioctl reading");
+  
+
+  // /*ETHERNET HEADER*/
+  // sendbuff= (unsigned char*)malloc(64);
+  // memset(sendbuff,0,64);
+  // struct ethhdr *eth = (struct ethhdr *)(sendbuff);
+
+  
+  // /* filling destination mac. DESTMAC0 to DESTMAC5 are macro having octets of mac address. */
+  // eth->h_dest[0] = 0x70;
+  // eth->h_dest[1] = 0x85;
+  // eth->h_dest[2] = 0xc2;
+  // eth->h_dest[3] = 0x08;
+  // eth->h_dest[4] = 0x88;
+  // eth->h_dest[5] = 0xb7;
+  
+  // eth->h_source[0] = (unsigned char)(ir.ifr_hwaddr.sa_data[0]);
+  // eth->h_source[1] = (unsigned char)(ir.ifr_hwaddr.sa_data[1]);
+  // eth->h_source[2] = (unsigned char)(ir.ifr_hwaddr.sa_data[2]);
+  // eth->h_source[3] = (unsigned char)(ir.ifr_hwaddr.sa_data[3]);
+  // eth->h_source[4] = (unsigned char)(ir.ifr_hwaddr.sa_data[4]);
+  // eth->h_source[5] = (unsigned char)(ir.ifr_hwaddr.sa_data[5]);
+
+
+  // eth->h_proto = htons(ETH_P_IP); //means next header will be IP header
+ 
+  // /* end of ethernet header */
+  // int total_len=sizeof(struct ethhdr);
+  // /*IP HEADER*/
+  // struct iphdr *iph = (struct iphdr*)(sendbuff + sizeof(struct ethhdr));
+  // iph->ihl = 5;
+  // for(int i=0;i<15;i++)
+  //   printf("i:%d data: %d\n",i, sendbuff[i]);
+  // printf("--------------\n");
+  // iph->version = 4;
+  // for(int i=0;i<16;i++)
+  //   printf("i:%d data: %.2X\n",i, sendbuff[i]);
+  // iph->tos = 16;
+  // iph->id = htons(10201);
+  // iph->ttl = 64;
+  // iph->protocol = 17;
+  // iph->saddr = inet_addr(inet_ntoa((((struct sockaddr_in *)&(ir.ifr_addr))->sin_addr)));
+  // iph->daddr = inet_addr("127.0.1.1"); // put destination IP address
+ 
+  // total_len += sizeof(struct iphdr);
+  // /*end of ip header*/
+
+  // /*UDP header*/
+  // struct udphdr *uh = (struct udphdr *)(sendbuff + sizeof(struct iphdr) + sizeof(struct ethhdr));
+  // uh->source = htons(23451);
+  // uh->dest = htons(23452);
+  // uh->check = 0;
+
+  // total_len+= sizeof(struct udphdr);
+  // /*End of udp header*/
+
+  // sendbuff[total_len++] = 0xBB;
+  // sendbuff[total_len++] = 0xBB;
+  // sendbuff[total_len++] = 0xBB;
+  // sendbuff[total_len++] = 0xBB;
+  // sendbuff[total_len++] = 0xBB;
+  
+  // uh->len = htons((total_len - sizeof(struct iphdr) - sizeof(struct ethhdr))); //UDP length field
+  // printf("uh%d\n",uh->len);
+  // iph->tot_len = htons(total_len - sizeof(struct ethhdr));//IP length field
+  // iph->check = checksum((unsigned short*)(sendbuff + sizeof(struct ethhdr)), (sizeof(struct iphdr)/2));
+  
+  // for(int i=0;i<total_len;i++)
+  //   printf("%.2X",sendbuff[i]);
+
+
+  
+  // return soquete;
 }
+#define BYTES 14
 
 int main(int argc, char const *argv[])
 {
@@ -147,7 +150,15 @@ int main(int argc, char const *argv[])
     printf("error in sending....sendlen=%d....errno=%d\n",send_len,errno);
     return -1;
   }
-  printf("\n%ld\n",sendto(send_len,sendbuff,64,0,NULL,sizeof(struct sockaddr_ll)));
+
+  sendbuff= (unsigned char*)malloc(BYTES);
+  memset(sendbuff,0,BYTES);
+  sendbuff[0] = 0xBB;
+  sendbuff[1] = 0xBB;
+  sendbuff[2] = 0xBB;
+  sendbuff[3] = 0xBB;
+  sendbuff[4] = 0xBB;
+  printf("\n%ld\n",sendto(send_len,sendbuff,BYTES,0,NULL,sizeof(struct sockaddr_ll)));
 
   return 0;
 }
