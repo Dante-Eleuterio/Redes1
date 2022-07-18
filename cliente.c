@@ -3,8 +3,10 @@ void _ls(int op_a,int op_l)
 {
 	//Here we will list the directory
 	struct dirent *d;
+    struct stat fs;
 	DIR *dh = opendir(".");
-	if (!dh)
+	int r=0;
+    if (!dh)
 	{
 		if (errno = ENOENT)
 		{
@@ -24,8 +26,52 @@ void _ls(int op_a,int op_l)
 		//If hidden files are found we continue
 		if (!op_a && d->d_name[0] == '.')
 			continue;
-		printf("%s  ", d->d_name);
-		if(op_l) printf("\n");
+		r=stat(d->d_name,&fs);
+        if(r!=-1){
+            if(S_ISREG(fs.st_mode))
+                printf("-");
+            if(S_ISDIR(fs.st_mode))
+                printf("d");
+            //Permissions
+            if( fs.st_mode & S_IRUSR )
+                printf("r");
+            else
+                printf("-");
+            if( fs.st_mode & S_IWUSR )
+                printf("w");
+            else
+                printf("-");
+            if( fs.st_mode & S_IXUSR )
+                printf("x");
+            else
+                printf("-");
+            if( fs.st_mode & S_IRGRP )
+                printf("r");
+            else
+                printf("-");
+            if( fs.st_mode & S_IWGRP )
+                printf("w");
+            else
+                printf("-");
+            if( fs.st_mode & S_IXGRP )
+                printf("x");
+            else
+                printf("-");
+            if( fs.st_mode & S_IROTH )
+                printf("r");
+            else
+                printf("-");
+            if( fs.st_mode & S_IWOTH )
+                printf("w");
+            else
+                printf("-");
+            if( fs.st_mode & S_IXOTH )
+                printf("x");
+            else
+                printf("-");
+            printf(" %s  ", d->d_name);
+            if(op_l) printf("\n");
+        }
 	}
 	if(!op_l)
 	printf("\n");
@@ -52,30 +98,47 @@ void constroi_buffer(int soquete,unsigned char input[],int sequencia,int tipo){
 
   
 }
-int retorna_tipo(unsigned char buffer[],int a,int l,unsigned char dir[]){
+int retorna_tipo(unsigned char buffer[],int *a,int *l,unsigned char dir[]){
 
     int i=0;
-    if(!strncmp("ls",buffer,2)){
-        i=3;
-        while (buffer[i]!='\0')
-        {
-            if(buffer[i]=='-'){
-                i++;
-                if(buffer[i]=='a')
-                    a=1;
-                else
-                if(buffer[i]=='l')
-                    l=1;
-            }
-            i++;
-        }
+    unsigned char cmd[6];
+    unsigned char arg1[52];
+    unsigned char arg2[6];
+    sscanf(buffer,"%s %s %s",cmd,arg1,arg2);
+
+    if(!strncmp("ls",cmd,2)){
+            if(!strncmp("-a",arg1,2))
+                *a=1;
+            if(!strncmp("-l",arg1,2))
+                *l=1;
+            if(!strncmp("-a",arg2,2))
+                *a=1;
+            if(!strncmp("-l",arg2,2))
+                *l=1;
         return LSL;
     }
-    if(!strncmp("cd",buffer,2)){
-        i=3;
-        while(buffer[i]!='\0' && ){
-
-        }
+    if(!strncmp("lsr",cmd,2)){
+            if(!strncmp("-a",arg1,2))
+                *a=1;
+            if(!strncmp("-l",arg1,2))
+                *l=1;
+            if(!strncmp("-a",arg2,2))
+                *a=1;
+            if(!strncmp("-l",arg2,2))
+                *l=1;
+        return LS;
+    }
+    if(!strncmp("cd",cmd,2)){
+        strncpy(dir,arg1,52);
+        return CDL;
+    }
+    if(!strncmp("cdr",cmd,2)){
+        strncpy(dir,arg1,52);
+        return CD;
+    }
+    if(!strncmp("mkdir",cmd,5)){
+        strncpy(dir,arg1,52);
+        return MKDIRL;
     }
     else
         return 0;
@@ -83,11 +146,11 @@ int retorna_tipo(unsigned char buffer[],int a,int l,unsigned char dir[]){
 //enp7s0f0
 int main(int argc, char const *argv[])
 {
-    int a=0;
-    int l=0;
+    int arg_a=0;
+    int arg_l=0;
     int send_len= ConexaoRawSocket("lo");
     unsigned char input[64];
-    unsigned char dir[60];
+    unsigned char dir[52];
     int sequencia=0;
     int tipo;
     char cwd[PATH_MAX];
@@ -102,16 +165,25 @@ int main(int argc, char const *argv[])
     while(1){
         printf("Cliente:%s$ ",getcwd(cwd, sizeof(cwd)));
         fgets(input,64,stdin);
-        tipo=retorna_tipo(input,a,l,dir);
+        tipo=retorna_tipo(input,&arg_a,&arg_l,dir);
         switch (tipo)
         {
             case CDL:
-                Change_Directory()
+                chdir(dir);
                 break;
             case LSL:
-                _ls(a,l);
+            {
+                _ls(arg_a,arg_l);
+                arg_a=0;
+                arg_l=0;
                 break;
+            }
             case MKDIRL:
+                mkdir(dir,0700);
+                break;
+            case LS:
+                break;
+            case CD:
                 break;
             default:
                 constroi_buffer(send_len,input,sequencia,tipo);

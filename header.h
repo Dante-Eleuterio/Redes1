@@ -16,6 +16,8 @@
 #include <stdio.h>
 #include <limits.h>
 #include <dirent.h>
+#include <sys/stat.h>
+
 
 #define OK 1
 #define NACK 2
