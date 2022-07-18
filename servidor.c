@@ -6,7 +6,7 @@
 int last_seq;
 
 
-void DesmontaBuffer(unsigned char buffer[]){
+void DesmontaBuffer(unsigned char buffer[],unsigned char dados[]){
   header *hd = (header *)(buffer);
   if(last_seq!=hd->sequencia){
       last_seq=hd->sequencia;
@@ -15,10 +15,15 @@ void DesmontaBuffer(unsigned char buffer[]){
       printf("\t|tamanho :%d\n ",hd->tamanho);
       printf("\t|sequencia :%d\n ",hd->sequencia);
       printf("\t|tipo :%d\n",hd->tipo);
-      unsigned char * data = (buffer + sizeof(header));
+      unsigned char *data = (buffer + sizeof(header));
       for (int i = 0; i < hd->tamanho; i++)
         printf("i:%d data:%c\n",i,data[i]);
       printf("paridade: %d\n",buffer[BYTES-1]);
+      strncpy(dados,data,63);
+      printf("dados: %s\n",dados);
+
+      if(hd->tipo==MKDIR)
+        mkdir(data,0700);
     }
     
 }
@@ -29,6 +34,7 @@ int main(){
   sock_r = ConexaoRawSocket("lo");
   unsigned char *buffer = (unsigned char *) malloc(BYTES); //to receive data
   memset(buffer,0,BYTES);
+  unsigned char data[63];
   int buflen;
   last_seq=-1;
   while(1)
@@ -39,7 +45,7 @@ int main(){
       return -1;
     }
   if(buffer[0]==126)
-    DesmontaBuffer(buffer);
+    DesmontaBuffer(buffer,data);
   }
   return 0;
 }
