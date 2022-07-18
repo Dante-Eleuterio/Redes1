@@ -3,51 +3,24 @@
 #include <dirent.h>
 #include <errno.h>
 #include <stdlib.h>
+int last_seq;
 
-void _ls(const char *dir,int op_a,int op_l)
-{
-	//Here we will list the directory
-	struct dirent *d;
-	DIR *dh = opendir(dir);
-	if (!dh)
-	{
-		if (errno = ENOENT)
-		{
-			//If the directory is not found
-			perror("Directory doesn't exist");
-		}
-		else
-		{
-			//If the directory is not readable then throw error and exit
-			perror("Unable to read directory");
-		}
-		exit(EXIT_FAILURE);
-	}
-	//While the next entry is not readable we will print directory files
-	while ((d = readdir(dh)) != NULL)
-	{
-		//If hidden files are found we continue
-		if (!op_a && d->d_name[0] == '.')
-			continue;
-		printf("%s  ", d->d_name);
-		if(op_l) printf("\n");
-	}
-	if(!op_l)
-	printf("\n");
-}
 
-void DesmontaBuffer(int buflen,unsigned char buffer[]){
+void DesmontaBuffer(unsigned char buffer[]){
   header *hd = (header *)(buffer);
-  printf("HEADER");
-  printf("\t|mi :%d\n ",hd->mi);
-  printf("\t|tamanho :%d\n ",hd->tamanho);
-  printf("\t|sequencia :%d\n ",hd->sequencia);
-  printf("\t|tipo :%d\n",hd->tipo);
-  unsigned char * data = (buffer + sizeof(header));
-  int remaining_data = buflen - 1 - (sizeof(header));
-  for (int i = 0; i < remaining_data; i++)
-    printf("i:%d data:%c\n",i,data[i]);
-  printf("paridade: %d\n",data[remaining_data]);
+  if(last_seq!=hd->sequencia){
+      last_seq=hd->sequencia;
+      printf("HEADER");
+      printf("\t|mi :%d\n ",hd->mi);
+      printf("\t|tamanho :%d\n ",hd->tamanho);
+      printf("\t|sequencia :%d\n ",hd->sequencia);
+      printf("\t|tipo :%d\n",hd->tipo);
+      unsigned char * data = (buffer + sizeof(header));
+      for (int i = 0; i < hd->tamanho; i++)
+        printf("i:%d data:%c\n",i,data[i]);
+      printf("paridade: %d\n",buffer[BYTES-1]);
+    }
+    
 }
 
 
@@ -57,6 +30,7 @@ int main(){
   unsigned char *buffer = (unsigned char *) malloc(BYTES); //to receive data
   memset(buffer,0,BYTES);
   int buflen;
+  last_seq=-1;
   while(1)
   {  
     buflen=recvfrom(sock_r,buffer,BYTES,0,NULL,0);
@@ -65,7 +39,7 @@ int main(){
       return -1;
     }
   if(buffer[0]==126)
-    DesmontaBuffer(buflen,buffer);
+    DesmontaBuffer(buffer);
   }
   return 0;
 }

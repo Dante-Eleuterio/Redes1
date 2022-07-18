@@ -12,9 +12,34 @@
 #include <errno.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <limits.h>
+#include <dirent.h>
 
-#define BYTES 14
+#define OK 1
+#define NACK 2
+#define ACK 3
+#define CD 6
+#define LS 7
+#define MKDIR 8
+#define GET 9
+#define PUT 10 
+#define ERRO 17
+#define DESCRITOR 24
+#define DADOS 32
+
+#define LSL 35
+#define CDL 36
+#define MKDIRL 37
+
+#define FIM 46
+#define MOSTRA 63
+
+#define BYTES 68
 #pragma pack(1)
+
+
 struct header{
   unsigned int  mi : 8;
   unsigned int  tamanho:6;
