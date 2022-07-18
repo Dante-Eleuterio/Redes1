@@ -1,84 +1,72 @@
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <net/ethernet.h>
-#include <linux/if_packet.h>
-#include <linux/if.h>
-#include <stdlib.h>
-#include <string.h>
+#include "header.h"
 #include <stdio.h>
-#include <arpa/inet.h>
+#include <dirent.h>
 #include <errno.h>
-#include <linux/ip.h>
-#include <linux/udp.h>
-#define BYTES 15
-#pragma pack(1)
-struct header{
-  unsigned int  mi : 8;
-  unsigned int  tamanho:6;
-  unsigned int  sequencia:4;
-  unsigned int  tipo:6;
-};
-typedef struct header header;
-int ConexaoRawSocket(char *device)
+#include <stdlib.h>
+
+void _ls(const char *dir,int op_a,int op_l)
 {
-  int soquete;
-  struct ifreq ir;
-  struct sockaddr_ll endereco;
-  struct packet_mreq mr;
-
-  soquete = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));  	/*cria socket*/
-  if (soquete == -1) {
-    printf("Erro no Socket\n");
-    exit(-1);
-  }
-
-   memset(&ir, 0, sizeof(struct ifreq));  	/*dispositivo eth0*/
-   memcpy(ir.ifr_name, device, sizeof(device));
-   if (ioctl(soquete, SIOCGIFINDEX, &ir) == -1) {
-     printf("Erro no ioctl\n");
-     exit(-1);
-   }
-	  memset(&endereco, 0, sizeof(endereco)); 	/*IP do dispositivo*/
-   endereco.sll_family = AF_PACKET;
-   endereco.sll_protocol = htons(ETH_P_ALL);
-   endereco.sll_ifindex = ir.ifr_ifindex;
-   if (bind(soquete, (struct sockaddr *)&endereco, sizeof(endereco)) == -1) {
-     printf("Erro no bind\n");
-     exit(-1);
-   }
-  memset(&mr, 0, sizeof(mr));          /*Modo Promiscuo*/
-   mr.mr_ifindex = ir.ifr_ifindex;
-   mr.mr_type = PACKET_MR_PROMISC;
-   if (setsockopt(soquete, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr)) == -1)	{
-     printf("Erro ao fazer setsockopt\n");
-     exit(-1);
-   }
-
-  return soquete;
+	//Here we will list the directory
+	struct dirent *d;
+	DIR *dh = opendir(dir);
+	if (!dh)
+	{
+		if (errno = ENOENT)
+		{
+			//If the directory is not found
+			perror("Directory doesn't exist");
+		}
+		else
+		{
+			//If the directory is not readable then throw error and exit
+			perror("Unable to read directory");
+		}
+		exit(EXIT_FAILURE);
+	}
+	//While the next entry is not readable we will print directory files
+	while ((d = readdir(dh)) != NULL)
+	{
+		//If hidden files are found we continue
+		if (!op_a && d->d_name[0] == '.')
+			continue;
+		printf("%s  ", d->d_name);
+		if(op_l) printf("\n");
+	}
+	if(!op_l)
+	printf("\n");
 }
+
+void DesmontaBuffer(int buflen,unsigned char buffer[]){
+  header *hd = (header *)(buffer);
+  printf("HEADER");
+  printf("\t|mi :%d\n ",hd->mi);
+  printf("\t|tamanho :%d\n ",hd->tamanho);
+  printf("\t|sequencia :%d\n ",hd->sequencia);
+  printf("\t|tipo :%d\n",hd->tipo);
+  unsigned char * data = (buffer + sizeof(header));
+  int remaining_data = buflen - 1 - (sizeof(header));
+  for (int i = 0; i < remaining_data; i++)
+    printf("i:%d data:%c\n",i,data[i]);
+  printf("paridade: %d\n",data[remaining_data]);
+}
+
+
 int main(){
   int sock_r;
   sock_r = ConexaoRawSocket("lo");
   unsigned char *buffer = (unsigned char *) malloc(BYTES); //to receive data
   memset(buffer,0,BYTES);
   int buflen;
+  while(1)
+  {  
     buflen=recvfrom(sock_r,buffer,BYTES,0,NULL,0);
     if(buflen<0){
       printf("error in reading recvfrom function\n");
       return -1;
     }
-    header *hd = (header *)(buffer);
-    printf("HEADER");
-    printf("\t|mi :%d\n ",hd->mi);
-    printf("\t|tamanho :%d\n ",hd->tamanho);
-    printf("\t|sequencia :%d\n ",hd->sequencia);
-    printf("\t|tipo :%d\n",hd->tipo);
-    unsigned char * data = (buffer + sizeof(header));
-    int remaining_data = buflen - 1 - (sizeof(header));
-  for (int i = 0; i < remaining_data; i++)
-    printf("i:%d data:%d\n",i,data[i]);
-  printf("paridade: %d\n",data[remaining_data]);
+  if(buffer[0]==126)
+    DesmontaBuffer(buflen,buffer);
+  }
   return 0;
 }
 // int main (char argc, char argv[]){

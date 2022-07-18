@@ -1,0 +1,2 @@
+
+int ConexaoRawSocket(char *devide);

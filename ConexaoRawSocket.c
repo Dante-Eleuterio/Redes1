@@ -1,24 +1,5 @@
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <net/ethernet.h>
-#include <linux/if_packet.h>
-#include <linux/if.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-#include <arpa/inet.h>
-#include <errno.h>
+#include "header.h"
 
-#define BYTES 15
-#pragma pack(1)
-struct header{
-  unsigned int  mi : 8;
-  unsigned int  tamanho:6;
-  unsigned int  sequencia:4;
-  unsigned int  tipo:6;
-};
-typedef struct header header;
 int ConexaoRawSocket(char *device)
 {
   int soquete;
@@ -136,40 +117,3 @@ int ConexaoRawSocket(char *device)
 
   
   // return soquete;
-void constroi_buffer(int soquete){
-  unsigned char *sendbuff;
-  sendbuff= (unsigned char*)malloc(BYTES);
-  memset(sendbuff,0,BYTES);
-  header *eth = (header *)(sendbuff);
-  eth->mi=126;
-  eth->tamanho=11;
-  eth->sequencia=8;
-  eth->tipo=63;
-  int total_len=sizeof(header);
-  printf("size %d\n",total_len);
-  for (int i = total_len; i < BYTES-1; i++)
-  {
-    sendbuff[i] = 33;
-  }
-  sendbuff[BYTES-1]=111;
-  for(int j=0;j<BYTES;j++){
-    printf("%d ",sendbuff[j]);
-  }
-  printf("\n%ld\n",sendto(soquete,sendbuff,BYTES,0,NULL,0));
-
-  
-}
-
-int main(int argc, char const *argv[])
-{
-  int send_len= ConexaoRawSocket("lo");
-  if(send_len<0)
-  {
-    printf("error in sending....sendlen=%d....errno=%d\n",send_len,errno);
-    return -1;
-  }
-  constroi_buffer(send_len);
-
-
-  return 0;
-}
