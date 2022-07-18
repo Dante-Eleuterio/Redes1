@@ -1,83 +1,4 @@
 #include "header.h"
-void _ls(int op_a,int op_l)
-{
-	//Here we will list the directory
-	struct dirent *d;
-    struct stat fs;
-	DIR *dh = opendir(".");
-	int r=0;
-    if (!dh)
-	{
-		if (errno = ENOENT)
-		{
-			//If the directory is not found
-			perror("Directory doesn't exist");
-		}
-		else
-		{
-			//If the directory is not readable then throw error and exit
-			perror("Unable to read directory");
-		}
-		exit(EXIT_FAILURE);
-	}
-	//While the next entry is not readable we will print directory files
-	while ((d = readdir(dh)) != NULL)
-	{
-		//If hidden files are found we continue
-		if (!op_a && d->d_name[0] == '.')
-			continue;
-		r=stat(d->d_name,&fs);
-        if(r!=-1){
-            if(S_ISREG(fs.st_mode))
-                printf("-");
-            if(S_ISDIR(fs.st_mode))
-                printf("d");
-            //Permissions
-            if( fs.st_mode & S_IRUSR )
-                printf("r");
-            else
-                printf("-");
-            if( fs.st_mode & S_IWUSR )
-                printf("w");
-            else
-                printf("-");
-            if( fs.st_mode & S_IXUSR )
-                printf("x");
-            else
-                printf("-");
-            if( fs.st_mode & S_IRGRP )
-                printf("r");
-            else
-                printf("-");
-            if( fs.st_mode & S_IWGRP )
-                printf("w");
-            else
-                printf("-");
-            if( fs.st_mode & S_IXGRP )
-                printf("x");
-            else
-                printf("-");
-            if( fs.st_mode & S_IROTH )
-                printf("r");
-            else
-                printf("-");
-            if( fs.st_mode & S_IWOTH )
-                printf("w");
-            else
-                printf("-");
-            if( fs.st_mode & S_IXOTH )
-                printf("x");
-            else
-                printf("-");
-            printf(" %s  ", d->d_name);
-            if(op_l) printf("\n");
-        }
-	}
-	if(!op_l)
-	printf("\n");
-    closedir(dh);
-}
-
 void constroi_buffer(int soquete,unsigned char input[],int sequencia,int tipo){
     unsigned char *sendbuff;
     unsigned char dados[64];
@@ -173,7 +94,14 @@ int main(int argc, char const *argv[])
                 break;
             case LSL:
             {
-                _ls(arg_a,arg_l);
+                if(arg_a==0 && arg_l==0)
+                    system("ls > batata.txt");
+                if(arg_a!=0 && arg_l==0)
+                    system("ls -a");
+                if(arg_a==0 && arg_l!=0)
+                    system("ls -l");
+                if(arg_a!=0 && arg_l!=0)
+                    system("ls -a -l");
                 arg_a=0;
                 arg_l=0;
                 break;
