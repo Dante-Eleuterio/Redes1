@@ -26,7 +26,6 @@ void constroi_buffer(int soquete,int sequencia,unsigned char input[],int tipo){
     }
     sendbuff[BYTES-1]=paridade;
     imprime_buffer(head);
-    printf("enviando");
     sendto(soquete,sendbuff,BYTES,0,NULL,0);
     free(sendbuff);
 }
@@ -42,7 +41,6 @@ int DesmontaBuffer(unsigned char buffer[],unsigned char dados[],int *tipo,int *l
             paridade^=data[i];
         }
         strncpy(dados,data,63);
-    printf("desmontando\n");
     imprime_buffer(head);
     return 1;
     }

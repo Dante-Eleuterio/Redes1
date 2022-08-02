@@ -74,7 +74,7 @@ int main(int argc, char const *argv[])
     memset(buffer,0,BYTES);
     int args_ls=0;
     int buflen;
-    int send_len= ConexaoRawSocket("lo");
+    int send_len= ConexaoRawSocket("enp7s0f0");
     unsigned char input[76];
     unsigned char dir[63];
     limpa_string(input,76);
@@ -126,12 +126,17 @@ int main(int argc, char const *argv[])
                 constroi_buffer(send_len,sequencia,dir,tipo);
                 limpa_string(dir,63);
                 while(1)
-                {buflen=recvfrom(send_len,buffer,BYTES,0,NULL,0);
-                if(buflen<0){
-                    printf("error in reading recvfrom function\n");
-                    return -1;
+                {
+                    buflen=recvfrom(send_len,buffer,BYTES,0,NULL,0);
+                    if(buflen<0){
+                        printf("error in reading recvfrom function\n");
+                        return -1;
+                    }
+                    if(buffer[0]==126){
+                        DesmontaBuffer(buffer,dir,&batata,&last_seq);
+                        printf("%c%c",dir[0],dir[1]); //bugado
+                    }
                 }
-                DesmontaBuffer(buffer,dir,&batata,&last_seq);}
                 break;
             case MKDIR:
                 constroi_buffer(send_len,sequencia,dir,tipo);
