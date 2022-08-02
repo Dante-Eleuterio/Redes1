@@ -1,95 +1,101 @@
 #include "header.h"
+#include "BufferFunctions.h"
 
-int retorna_tipo(unsigned char buffer[],int *a,int *l,unsigned char dir[]){
+int sequencia;
+int last_seq;
+int retorna_tipo(unsigned char buffer[],int *args_ls,unsigned char dir[]){
 
     int i=0;
+    int a=0;
+    int l=0;
     unsigned char cmd[7];
-    unsigned char arg1[52];
+    unsigned char arg1[63];
     unsigned char arg2[6];
     sscanf(buffer,"%s %s %s",cmd,arg1,arg2);
-    printf("%s %s\n",cmd,arg1);
     if(!strncmp(cmd,"ls",3)){
-            if(!strncmp("-a",arg1,2))
-                *a=1;
-            if(!strncmp("-l",arg1,2))
-                *l=1;
-            if(!strncmp("-a",arg2,2))
-                *a=1;
-            if(!strncmp("-l",arg2,2))
-                *l=1;
+        if(!strncmp("-a",arg1,3))
+            a=1;
+        if(!strncmp("-l",arg1,3))
+            l=1;
+        if(!strncmp("-a",arg2,3))
+            a=1;
+        if(!strncmp("-l",arg2,3))
+            l=1;
+        if(a==1 && l==0)
+            *args_ls=1;
+        if(a==0 && l==1)
+            *args_ls=2;
+        if(a==1 && l==1)
+            *args_ls=3;
         return LSL;
     }
     if(!strncmp("rls",cmd,3)){
-            if(!strncmp("-a",arg1,2))
-                *a=1;
-            if(!strncmp("-l",arg1,2))
-                *l=1;
-            if(!strncmp("-a",arg2,2))
-                *a=1;
-            if(!strncmp("-l",arg2,2))
-                *l=1;
+        if(!strncmp("-a",arg1,3))
+            a=1;
+        if(!strncmp("-l",arg1,3))
+            l=1;
+        if(!strncmp("-a",arg2,3))
+            a=1;
+        if(!strncmp("-l",arg2,3))
+            l=1;
+        if(a==1 && l==0)
+            *args_ls=1;
+        if(a==0 && l==1)
+            *args_ls=2;
+        if(a==1 && l==1)
+            *args_ls=3;
         return LS;
     }
     if(!strncmp("cd",cmd,3)){
-        strncpy(dir,arg1,52);
+        strncpy(dir,arg1,63);
         return CDL;
     }
     if(!strncmp("rcd",cmd,3)){
-        strncpy(dir,arg1,52);
+        strncpy(dir,arg1,63);
         return CD;
     }
     if(!strncmp("mkdir",cmd,6)){
-        strncpy(dir,arg1,52);
+        strncpy(dir,arg1,63);
         return MKDIRL;
     }
     if(!strncmp("rmkdir",cmd,6)){
-        strncpy(dir,arg1,52);
+        strncpy(dir,arg1,63);
         return MKDIR;
     }
     else
         return 0;
 }
 //enp7s0f0
-void constroi_buffer(int soquete,unsigned char input[],int sequencia,int tipo){
-    unsigned char *sendbuff;
-    unsigned char dados[63];
-    sendbuff= (unsigned char*)malloc(BYTES);
-    memset(sendbuff,0,BYTES);
-    header *eth = (header *)(sendbuff);
-    eth->mi=126;
-    eth->tamanho=strlen(input);
-    eth->sequencia=sequencia;
-    eth->tipo=tipo;
-    int total_len=sizeof(header);
-    for (int i = total_len; i < BYTES-1; i++)
-    {
-        sendbuff[i] = input[i-total_len];
-    }
-        sendbuff[BYTES-1]=111;
-    sendto(soquete,sendbuff,BYTES,0,NULL,0);
-}
+
 int main(int argc, char const *argv[])
 {
-    int arg_a=0;
-    int arg_l=0;
+    int batata=0;
+    unsigned char *buffer = (unsigned char *) malloc(BYTES); //to receive data
+    memset(buffer,0,BYTES);
+    int args_ls=0;
+    int buflen;
     int send_len= ConexaoRawSocket("lo");
-    unsigned char input[63];
-    unsigned char dir[52];
-    int sequencia=0;
+    unsigned char input[76];
+    unsigned char dir[63];
+    limpa_string(input,76);
+    limpa_string(dir,63);
     int tipo;
     char cwd[PATH_MAX];
-    for (int i = 0; i < 63; i++)
-        input[i]=0;
+    sequencia=0;
+    last_seq=-1;
     if(send_len<0)
     {
         printf("error in sending....sendlen=%d....errno=%d\n",send_len,errno);
         return -1;
     }
     system("clear");
-    while(1){
+    //while(1){
+        limpa_string(input,76);
+        limpa_string(dir,63);
         printf("Cliente:%s$ ",getcwd(cwd, sizeof(cwd)));
-        fgets(input,63,stdin);
-        tipo=retorna_tipo(input,&arg_a,&arg_l,dir);
+        fgets(input,76,stdin);
+        tipo=retorna_tipo(input,&args_ls,dir);
+        limpa_string(input,76);
         switch (tipo)
         {
             case CDL:
@@ -97,36 +103,47 @@ int main(int argc, char const *argv[])
                 break;
             case LSL:
             {
-                if(arg_a==0 && arg_l==0)
+                if(args_ls==0)
                     system("ls");
-                if(arg_a!=0 && arg_l==0)
+                if(args_ls==1)
                     system("ls -a");
-                if(arg_a==0 && arg_l!=0)
+                if(args_ls==2)
                     system("ls -l");
-                if(arg_a!=0 && arg_l!=0)
+                if(args_ls==3)
                     system("ls -a -l");
-                arg_a=0;
-                arg_l=0;
+                args_ls=0;
                 break;
             }
             case MKDIRL:
                 mkdir(dir,0700);
                 break;
             case LS:
+                input[0]=args_ls;
+                constroi_buffer(send_len,sequencia,input,tipo);
+                args_ls=0;
                 break;
             case CD:
+                constroi_buffer(send_len,sequencia,dir,tipo);
+                limpa_string(dir,63);
+                while(1)
+                {buflen=recvfrom(send_len,buffer,BYTES,0,NULL,0);
+                if(buflen<0){
+                    printf("error in reading recvfrom function\n");
+                    return -1;
+                }
+                DesmontaBuffer(buffer,dir,&batata,&last_seq);}
                 break;
             case MKDIR:
-                constroi_buffer(send_len,dir,sequencia,tipo);
+                constroi_buffer(send_len,sequencia,dir,tipo);
                 break;
             default:
-                constroi_buffer(send_len,input,sequencia,tipo);
+                constroi_buffer(send_len,sequencia,input,tipo);
                 break;
         }
         sequencia++;
         if (sequencia==8)
             sequencia=0;
-    }
+    //}
 
 
 
