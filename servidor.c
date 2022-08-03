@@ -21,8 +21,10 @@ int trata_tipo(int tipo,unsigned char data[],int soquete){
   case CD:
     chdir(data);
     limpa_string(data,63);
-    constroi_buffer(soquete,sequencia,data,OK);
+    constroi_buffer(soquete,sequencia,data,42);
     sequencia++;
+    if(sequencia==16)
+      sequencia=0;
     break;
   case MKDIR:
     mkdir(data,0700);
@@ -57,23 +59,11 @@ int trata_tipo(int tipo,unsigned char data[],int soquete){
   }
 }
 
-// void imprime_buffer(header *head,unsigned char dados[],int paridade,unsigned char paridade_recebida){
-//       printf("HEADER");
-//       printf("\t|mi :%d\n ",head->mi);
-//       printf("\t|tamanho :%d\n ",head->tamanho);
-//       printf("\t|sequencia :%d\n ",head->sequencia);
-//       printf("\t|tipo :%d\n",head->tipo);
-//       for (int i = 0; i < head->tamanho; i++){
-//         printf("i:%d data:%d\n",i,dados[i]);
-//       }
-//       printf("paridade calculada: %d, paridade recebida: %d\n",paridade,paridade_recebida);
-//       printf("dados: %s\n",dados);
-// }
 int main(){
   int buflen;
   int sock_r;
   int tipo=-1;
-  sock_r = ConexaoRawSocket("lo");
+  sock_r = ConexaoRawSocket("enp7s0f0");
   unsigned char *buffer = (unsigned char *) malloc(BYTES); //to receive data
   memset(buffer,0,BYTES);
   unsigned char data[63];

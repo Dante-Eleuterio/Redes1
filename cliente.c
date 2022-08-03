@@ -4,7 +4,7 @@
 int sequencia;
 int last_seq;
 
-struct timeval relogio,tempo_inicial;
+struct timeval relogio,relogio2,timeout,tempo_inicial;
 
 
 int retorna_tipo(unsigned char buffer[],int *args_ls,unsigned char dir[]){
@@ -73,9 +73,11 @@ int retorna_tipo(unsigned char buffer[],int *args_ls,unsigned char dir[]){
 
 int main(int argc, char const *argv[])
 {
-    int tipo_recebido=0;
+    int i=0;
+    timeout.tv_sec=10;
     unsigned char *buffer = (unsigned char *) malloc(BYTES); //to receive data
     memset(buffer,0,BYTES);
+    int tipo_recebido=0;
     int args_ls=0;
     int buflen;
     int send_len= ConexaoRawSocket("enp7s0f0");
@@ -84,6 +86,7 @@ int main(int argc, char const *argv[])
         printf("error in sending....sendlen=%d....errno=%d\n",send_len,errno);
         return -1;
     }
+    setsockopt(send_len,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));
     unsigned char input[76];
     unsigned char dir[63];
     int tipo=0;
@@ -133,7 +136,7 @@ int main(int argc, char const *argv[])
                     gettimeofday(&tempo_inicial,NULL);
                     while(tipo_recebido!=OK){
                         buflen=recvfrom(send_len,buffer,BYTES,0,NULL,0);
-                        if(buflen<0){
+                        if(errno!=11 && buflen<0){
                             printf("error in reading recvfrom function\n");
                             return -1;
                         }
@@ -141,7 +144,7 @@ int main(int argc, char const *argv[])
                             DesmontaBuffer(buffer,dir,&tipo_recebido,&last_seq);
                         }
                         gettimeofday(&relogio,NULL);
-                        if(relogio.tv_sec-tempo_inicial.tv_sec>=8)
+                        if(relogio.tv_sec-tempo_inicial.tv_sec>=30)
                         {
                             printf("TIMEOUT\n");
                             break;
@@ -163,7 +166,7 @@ int main(int argc, char const *argv[])
                 constroi_buffer(send_len,sequencia,input,tipo);
                 break;
         }
-        if (sequencia==8)
+        if (sequencia==15)
             sequencia=0;
     }
 

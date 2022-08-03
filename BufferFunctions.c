@@ -33,7 +33,7 @@ void constroi_buffer(int soquete,int sequencia,unsigned char input[],int tipo){
 int DesmontaBuffer(unsigned char buffer[],unsigned char dados[],int *tipo,int *last_seq){
     header *head = (header *)(buffer);
     int paridade=0;
-    if(*last_seq!=head->sequencia){
+    // if(*last_seq!=head->sequencia){
         unsigned char *data = (buffer + sizeof(header));
         for (int i = 0; i < head->tamanho; i++){
             paridade^=data[i];
@@ -45,8 +45,8 @@ int DesmontaBuffer(unsigned char buffer[],unsigned char dados[],int *tipo,int *l
         strncpy(dados,data,63);
     imprime_buffer(head);
     return 1;
-    }
-    return 0;
+    // }
+    // return 0;
 }
 
 
