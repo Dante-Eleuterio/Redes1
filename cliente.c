@@ -1,8 +1,12 @@
 #include "header.h"
 #include "BufferFunctions.h"
-
+#include <sys/time.h>
 int sequencia;
 int last_seq;
+
+struct timeval relogio,tempo_inicial;
+
+
 int retorna_tipo(unsigned char buffer[],int *args_ls,unsigned char dir[]){
 
     int i=0;
@@ -69,38 +73,36 @@ int retorna_tipo(unsigned char buffer[],int *args_ls,unsigned char dir[]){
 
 int main(int argc, char const *argv[])
 {
-    int batata=0;
+    int tipo_recebido=0;
     unsigned char *buffer = (unsigned char *) malloc(BYTES); //to receive data
     memset(buffer,0,BYTES);
     int args_ls=0;
     int buflen;
     int send_len= ConexaoRawSocket("enp7s0f0");
-    unsigned char input[76];
-    unsigned char dir[63];
-    limpa_string(input,76);
-    limpa_string(dir,63);
-    int tipo;
-    char cwd[PATH_MAX];
-    sequencia=0;
-    last_seq=-1;
     if(send_len<0)
     {
         printf("error in sending....sendlen=%d....errno=%d\n",send_len,errno);
         return -1;
     }
+    unsigned char input[76];
+    unsigned char dir[63];
+    int tipo=0;
+    char cwd[PATH_MAX];
+    sequencia=0;
+    last_seq=-1;
     system("clear");
-    //while(1){
+    while(1){
         limpa_string(input,76);
         limpa_string(dir,63);
         printf("Cliente:%s$ ",getcwd(cwd, sizeof(cwd)));
-        fgets(input,76,stdin);
+        do{
+            errno=0;
+            fgets(input,76,stdin);
+        }while(EINTR==errno);
         tipo=retorna_tipo(input,&args_ls,dir);
         limpa_string(input,76);
         switch (tipo)
         {
-            case CDL:
-                chdir(dir);
-                break;
             case LSL:
             {
                 if(args_ls==0)
@@ -114,41 +116,56 @@ int main(int argc, char const *argv[])
                 args_ls=0;
                 break;
             }
-            case MKDIRL:
-                mkdir(dir,0700);
-                break;
             case LS:
                 input[0]=args_ls;
                 constroi_buffer(send_len,sequencia,input,tipo);
+                sequencia++;
                 args_ls=0;
+                break;
+            case CDL:
+                chdir(dir);
                 break;
             case CD:
                 constroi_buffer(send_len,sequencia,dir,tipo);
+                sequencia++;
                 limpa_string(dir,63);
-                while(1)
-                {
-                    buflen=recvfrom(send_len,buffer,BYTES,0,NULL,0);
-                    if(buflen<0){
-                        printf("error in reading recvfrom function\n");
-                        return -1;
+                while(tipo_recebido!=OK){
+                    gettimeofday(&tempo_inicial,NULL);
+                    while(tipo_recebido!=OK){
+                        buflen=recvfrom(send_len,buffer,BYTES,0,NULL,0);
+                        if(buflen<0){
+                            printf("error in reading recvfrom function\n");
+                            return -1;
+                        }
+                        if(buffer[0]==126){
+                            DesmontaBuffer(buffer,dir,&tipo_recebido,&last_seq);
+                        }
+                        gettimeofday(&relogio,NULL);
+                        if(relogio.tv_sec-tempo_inicial.tv_sec>=8)
+                        {
+                            printf("TIMEOUT\n");
+                            break;
+                        }
+                        memset(buffer,0,BYTES);
                     }
-                    if(buffer[0]==126){
-                        DesmontaBuffer(buffer,dir,&batata,&last_seq);
-                        printf("%c%c",dir[0],dir[1]); //bugado
-                    }
-                }
+                    if(tipo_recebido!=OK)
+                        constroi_buffer(send_len,sequencia,dir,tipo);
+                }                
+                break;
+            case MKDIRL:
+                mkdir(dir,0700);
                 break;
             case MKDIR:
                 constroi_buffer(send_len,sequencia,dir,tipo);
+                sequencia++;
                 break;
             default:
                 constroi_buffer(send_len,sequencia,input,tipo);
                 break;
         }
-        sequencia++;
         if (sequencia==8)
             sequencia=0;
-    //}
+    }
 
 
 

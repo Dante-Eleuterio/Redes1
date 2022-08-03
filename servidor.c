@@ -81,8 +81,8 @@ int main(){
   limpa_string(data,63);
   sequencia=0;
   last_seq=-1;
-  //while(1)
-  //{  
+  while(1)
+  {  
     limpa_string(buffer,67);
     limpa_string(data,63);
     buflen=recvfrom(sock_r,buffer,BYTES,0,NULL,0);
@@ -95,6 +95,6 @@ int main(){
       trata_tipo(tipo,data,sock_r);
     }
   }
-  //}
+  }
   return 0;
 }

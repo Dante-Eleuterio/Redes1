@@ -15,6 +15,7 @@
         "dirent.h": "c",
         "unistd.h": "c",
         "stat.h": "c",
-        "bufferfunctions.h": "c"
+        "bufferfunctions.h": "c",
+        "time.h": "c"
     }
 }
