@@ -3,8 +3,8 @@
 #include <sys/time.h>
 int sequencia;
 int last_seq;
-
-struct timeval relogio,relogio2,timeout,tempo_inicial;
+int sequencia_recebida;
+struct timeval relogio,timeout,tempo_inicial;
 
 
 int retorna_tipo(unsigned char buffer[],int *args_ls,unsigned char dir[]){
@@ -73,8 +73,8 @@ int retorna_tipo(unsigned char buffer[],int *args_ls,unsigned char dir[]){
 
 int main(int argc, char const *argv[])
 {
-    int i=0;
-    timeout.tv_sec=10;
+    int tentativas=0;
+    timeout.tv_sec=5;
     unsigned char *buffer = (unsigned char *) malloc(BYTES); //to receive data
     memset(buffer,0,BYTES);
     int tipo_recebido=0;
@@ -141,15 +141,21 @@ int main(int argc, char const *argv[])
                             return -1;
                         }
                         if(buffer[0]==126){
-                            DesmontaBuffer(buffer,dir,&tipo_recebido,&last_seq);
+                            DesmontaBuffer(buffer,dir,&tipo_recebido,&last_seq,&sequencia_recebida);
                         }
                         gettimeofday(&relogio,NULL);
-                        if(relogio.tv_sec-tempo_inicial.tv_sec>=30)
+                        if(relogio.tv_sec-tempo_inicial.tv_sec>=15)
                         {
                             printf("TIMEOUT\n");
+                            tentativas++;
                             break;
                         }
                         memset(buffer,0,BYTES);
+                    }
+                    if(tentativas==2){
+                        tentativas=0;
+                        printf("Tempo de espera excedido. Por favor tente novamente\n");
+                        break;
                     }
                     if(tipo_recebido!=OK)
                         constroi_buffer(send_len,sequencia,dir,tipo);

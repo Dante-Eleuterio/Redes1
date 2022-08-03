@@ -2,6 +2,7 @@
 #include "BufferFunctions.h"
 
 int last_seq;
+int sequencia_recebida;
 int sequencia;
 
 int trata_tipo(int tipo,unsigned char data[],int soquete){
@@ -19,10 +20,17 @@ int trata_tipo(int tipo,unsigned char data[],int soquete){
     system("cat dados.txt");
     break;
   case CD:
-    chdir(data);
-    limpa_string(data,63);
-    constroi_buffer(soquete,sequencia,data,42);
-    sequencia++;
+    if(sequencia_recebida==last_seq)
+    {
+      limpa_string(data,63);
+      constroi_buffer(soquete,sequencia,data,OK);
+    }
+    else{
+      chdir(data);
+      limpa_string(data,63);
+      constroi_buffer(soquete,sequencia,data,42);
+      sequencia++;
+    }
     if(sequencia==16)
       sequencia=0;
     break;
@@ -81,9 +89,8 @@ int main(){
       return -1;
     }
   if(buffer[0]==126){
-    if(DesmontaBuffer(buffer,data,&tipo,&last_seq)){
+    DesmontaBuffer(buffer,data,&tipo,&last_seq,&sequencia_recebida)
       trata_tipo(tipo,data,sock_r);
-    }
   }
   }
   return 0;
