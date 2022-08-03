@@ -5,7 +5,18 @@ int last_seq;
 int sequencia_recebida;
 int sequencia;
 
-int trata_tipo(int tipo,unsigned char data[],int soquete){
+
+void falha(int soquete,unsigned char data[]){
+  limpa_string(data,63);
+  sequencia++;
+  if(last_seq==15)
+    data[0]=0;
+  else
+    data[0]=last_seq+1;
+  constroi_buffer(soquete,sequencia,data,NACK);
+}
+
+void trata_tipo(int tipo,unsigned char data[],int soquete){
   switch (tipo)
   {
   case LS:
@@ -20,16 +31,16 @@ int trata_tipo(int tipo,unsigned char data[],int soquete){
     system("cat dados.txt");
     break;
   case CD:
-    if(sequencia_recebida==last_seq)
-    {
+    if(sequencia_recebida==last_seq){
       limpa_string(data,63);
+      sequencia++;
       constroi_buffer(soquete,sequencia,data,OK);
     }
     else{
       chdir(data);
       limpa_string(data,63);
-      constroi_buffer(soquete,sequencia,data,42);
       sequencia++;
+      constroi_buffer(soquete,sequencia,data,OK);
     }
     if(sequencia==16)
       sequencia=0;
@@ -43,9 +54,6 @@ int trata_tipo(int tipo,unsigned char data[],int soquete){
   case PUT:
 
     break;
-  case ERRO:
-
-    break;
   case DESCRITOR:
 
     break;
@@ -56,10 +64,6 @@ int trata_tipo(int tipo,unsigned char data[],int soquete){
 
     break;
   case ACK:
-
-    break;
-
-  case OK:
 
     break;
   default:
@@ -77,8 +81,9 @@ int main(){
   unsigned char data[63];
   limpa_string(buffer,67);
   limpa_string(data,63);
-  sequencia=0;
-  last_seq=-1;
+  sequencia=-1;
+  last_seq=10;
+  sequencia_recebida=10;
   while(1)
   {  
     limpa_string(buffer,67);
@@ -89,8 +94,10 @@ int main(){
       return -1;
     }
   if(buffer[0]==126){
-    DesmontaBuffer(buffer,data,&tipo,&last_seq,&sequencia_recebida)
+    if(DesmontaBuffer(buffer,data,&tipo,&last_seq,&sequencia_recebida))
       trata_tipo(tipo,data,sock_r);
+    else
+      falha(sock_r,data);
   }
   }
   return 0;

@@ -42,8 +42,10 @@ int DesmontaBuffer(unsigned char buffer[],unsigned char dados[],int *tipo,int *l
     for (int i = 0; i < head->tamanho; i++){
         paridade^=data[i];
     }
-    if(paridade!=buffer[BYTES-1])
+    if(head->sequencia!=*last_seq+1 || paridade!=buffer[BYTES-1]){
+        *tipo=NACK;
         return 0;
+    }
     *last_seq=head->sequencia;
     *tipo=head->tipo;
     strncpy(dados,data,63);

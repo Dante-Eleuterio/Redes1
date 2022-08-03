@@ -77,7 +77,7 @@ int main(int argc, char const *argv[])
     timeout.tv_sec=5;
     unsigned char *buffer = (unsigned char *) malloc(BYTES); //to receive data
     memset(buffer,0,BYTES);
-    int tipo_recebido=0;
+    int tipo_recebido=99;
     int args_ls=0;
     int buflen;
     int send_len= ConexaoRawSocket("enp7s0f0");
@@ -91,8 +91,8 @@ int main(int argc, char const *argv[])
     unsigned char dir[63];
     int tipo=0;
     char cwd[PATH_MAX];
-    sequencia=0;
-    last_seq=-1;
+    sequencia=-1;
+    last_seq=10;
     system("clear");
     while(1){
         limpa_string(input,76);
@@ -129,8 +129,8 @@ int main(int argc, char const *argv[])
                 chdir(dir);
                 break;
             case CD:
-                constroi_buffer(send_len,sequencia,dir,tipo);
                 sequencia++;
+                constroi_buffer(send_len,sequencia,dir,tipo);
                 limpa_string(dir,63);
                 while(tipo_recebido!=OK){
                     gettimeofday(&tempo_inicial,NULL);
@@ -159,7 +159,9 @@ int main(int argc, char const *argv[])
                     }
                     if(tipo_recebido!=OK)
                         constroi_buffer(send_len,sequencia,dir,tipo);
-                }                
+                }
+                tentativas=0;
+                tipo_recebido=99;                
                 break;
             case MKDIRL:
                 mkdir(dir,0700);
