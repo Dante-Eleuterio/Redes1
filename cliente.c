@@ -77,7 +77,7 @@ int main(int argc, char const *argv[])
     timeout.tv_sec=5;
     unsigned char *buffer = (unsigned char *) malloc(BYTES); //to receive data
     memset(buffer,0,BYTES);
-    int tipo_recebido=99;
+    int tipo_recebido=DEFAULT;
     int args_ls=0;
     int buflen;
     int send_len= ConexaoRawSocket("enp7s0f0");
@@ -89,19 +89,18 @@ int main(int argc, char const *argv[])
     setsockopt(send_len,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));
     unsigned char input[76];
     unsigned char dir[63];
+    unsigned char aux[63];
     int tipo=0;
     char cwd[PATH_MAX];
     sequencia=-1;
-    last_seq=10;
+    last_seq=15;
     system("clear");
     while(1){
         limpa_string(input,76);
         limpa_string(dir,63);
+        limpa_string(aux,63);
         printf("Cliente:%s$ ",getcwd(cwd, sizeof(cwd)));
-        do{
-            errno=0;
-            fgets(input,76,stdin);
-        }while(EINTR==errno);
+        fgets(input,76,stdin);
         tipo=retorna_tipo(input,&args_ls,dir);
         limpa_string(input,76);
         switch (tipo)
@@ -121,8 +120,8 @@ int main(int argc, char const *argv[])
             }
             case LS:
                 input[0]=args_ls;
-                constroi_buffer(send_len,sequencia,input,tipo);
                 sequencia++;
+                constroi_buffer(send_len,sequencia,input,tipo,1);
                 args_ls=0;
                 break;
             case CDL:
@@ -130,54 +129,141 @@ int main(int argc, char const *argv[])
                 break;
             case CD:
                 sequencia++;
-                constroi_buffer(send_len,sequencia,dir,tipo);
-                limpa_string(dir,63);
+                constroi_buffer(send_len,sequencia,dir,tipo,strlen(dir));
                 while(tipo_recebido!=OK){
                     gettimeofday(&tempo_inicial,NULL);
                     while(tipo_recebido!=OK){
+                        limpa_string(aux,63);
                         buflen=recvfrom(send_len,buffer,BYTES,0,NULL,0);
                         if(errno!=11 && buflen<0){
                             printf("error in reading recvfrom function\n");
                             return -1;
                         }
                         if(buffer[0]==126){
-                            DesmontaBuffer(buffer,dir,&tipo_recebido,&last_seq,&sequencia_recebida);
+                            DesmontaBuffer(buffer,aux,&tipo_recebido,&last_seq,&sequencia_recebida);
+                        }
+                        if(tipo_recebido==NACK){
+                            tentativas=0;
+                            limpa_string(aux,63);
+                            break;
+                        }
+                        if(tipo_recebido==ERRO){
+                            switch (aux[0])
+                            {
+                            case 'A':
+                                printf("Diretorio inexistente\n");
+                                break;
+                            case 'B':
+                                printf("Sem permissao de Acesso\n");
+                                break;                            
+                            default:
+                                printf("Erro Desconhecido\n");
+                                break;
+                            }
+                            break;
                         }
                         gettimeofday(&relogio,NULL);
-                        if(relogio.tv_sec-tempo_inicial.tv_sec>=15)
-                        {
+                        if(relogio.tv_sec-tempo_inicial.tv_sec>=15 && tipo_recebido!=OK){
                             printf("TIMEOUT\n");
                             tentativas++;
                             break;
                         }
                         memset(buffer,0,BYTES);
                     }
+                    if(tipo_recebido==ERRO){
+                        break;
+                    }
                     if(tentativas==2){
                         tentativas=0;
                         printf("Tempo de espera excedido. Por favor tente novamente\n");
                         break;
                     }
-                    if(tipo_recebido!=OK)
-                        constroi_buffer(send_len,sequencia,dir,tipo);
+                    if(tipo_recebido!=OK){
+                        tipo_recebido=DEFAULT;
+                        constroi_buffer(send_len,sequencia,dir,tipo,strlen(dir));
+                    }
+
                 }
                 tentativas=0;
-                tipo_recebido=99;                
+                tipo_recebido=DEFAULT;                
                 break;
             case MKDIRL:
                 mkdir(dir,0700);
                 break;
             case MKDIR:
-                constroi_buffer(send_len,sequencia,dir,tipo);
                 sequencia++;
+                constroi_buffer(send_len,sequencia,dir,tipo,strlen(dir));
+                while(tipo_recebido!=OK){
+                    gettimeofday(&tempo_inicial,NULL);
+                    while(tipo_recebido!=OK){
+                        limpa_string(aux,63);
+                        buflen=recvfrom(send_len,buffer,BYTES,0,NULL,0);
+                        if(errno!=11 && buflen<0){
+                            printf("error in reading recvfrom function\n");
+                            return -1;
+                        }
+                        if(buffer[0]==126){
+                            DesmontaBuffer(buffer,aux,&tipo_recebido,&last_seq,&sequencia_recebida);
+                        }
+                        if(tipo_recebido==NACK){
+                            tentativas=0;
+                            limpa_string(aux,63);
+                            break;
+                        }
+                        if(tipo_recebido==ERRO){
+                            switch (aux[0])
+                            {
+                            case 'C':
+                                printf("Diretorio ja existente\n");
+                                break;
+                            case 'B':
+                                printf("Sem permissao de Acesso\n");
+                                break;                            
+                            case 'E':
+                                printf("Nao ha espaco para criar o diretorio\n");
+                                break;                            
+                            default:
+                                printf("Erro Desconhecido\n");
+                                break;
+                            }
+                            break;
+                        }
+                        gettimeofday(&relogio,NULL);
+                        if(relogio.tv_sec-tempo_inicial.tv_sec>=15 && tipo_recebido!=OK){
+                            printf("TIMEOUT\n");
+                            tentativas++;
+                            break;
+                        }
+                        memset(buffer,0,BYTES);
+                    }
+                    if(tipo_recebido==ERRO){
+                        break;
+                    }
+                    if(tentativas==2){
+                        tentativas=0;
+                        printf("Tempo de espera excedido. Por favor tente novamente\n");
+                        break;
+                    }
+                    if(tipo_recebido!=OK){
+                        tipo_recebido=DEFAULT;
+                        constroi_buffer(send_len,sequencia,dir,tipo,strlen(dir));
+                    }
+
+                }
+                tentativas=0;
+                tipo_recebido=DEFAULT;                
+                break;            
                 break;
             default:
-                constroi_buffer(send_len,sequencia,input,tipo);
+                sequencia++;
+                constroi_buffer(send_len,sequencia,input,tipo,strlen(input));
                 break;
         }
         if (sequencia==15)
             sequencia=0;
     }
 
+                constroi_buffer(send_len,sequencia,dir,tipo,strlen(dir));
 
 
 

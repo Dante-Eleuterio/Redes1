@@ -45,7 +45,7 @@
 
 
 //FIM ERROS
-
+#define DEFAULT 99
 #define BYTES 67
 #pragma pack(1)
 
