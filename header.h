@@ -45,11 +45,12 @@
 
 
 //FIM ERROS
+
 #define DEFAULT 99
 #define BYTES 67
 #pragma pack(1)
 
-
+//Header padrão das mensagens
 struct header{
   unsigned int  mi : 8;
   unsigned int  tamanho:6;
@@ -57,3 +58,18 @@ struct header{
   unsigned int  tipo:6;
 };
 typedef struct header header;
+
+//Flags de controle do código
+struct args{ 
+  int last_seq;
+  int last_type;
+  unsigned char last_data[63];
+  int aux;
+  int sequencia;
+  int tamanho;
+  int tentativas;
+  int soquete;
+  int buflen;
+};
+typedef struct args args;
+

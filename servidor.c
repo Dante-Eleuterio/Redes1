@@ -1,23 +1,107 @@
 #include "header.h"
 #include "BufferFunctions.h"
 
-//Flags de controle de sequência
-int last_seq;
-int aux;
-int sequencia;
-int tamanho;
+args dados;      //Flags de controle de mensagens
+/*-------------------------------------------------------------------------------*/
 //Trata erro de recebimento e envia
-void falha(int soquete,unsigned char data[]){
+void falha(unsigned char data[]){
   limpa_string(data,63);
-  sequencia++;
-  if(last_seq==15)   //Confere se chegou no final da sequencia
-    data[0]=0;      
+  dados.sequencia++;
+  if(dados.last_seq==15)   //Confere se chegou no final da dados.sequencia
+    data[0]=0;    //Reinicia sequencia
   else
-    data[0]=last_seq+1;
-  constroi_buffer(soquete,sequencia,data,NACK,1);
+    data[0]=dados.last_seq+1;     //A sequencia esperada é a próxima
+  memcpy(data,dados.last_data,63);
+  dados.last_type=NACK;
+  constroi_buffer(dados.soquete,dados.sequencia,data,NACK,1);
 }
-
-void trata_tipo(int tipo,unsigned char data[],int soquete){
+/*-------------------------------------------------------------------------------*/
+//Recebe o comando cd, interpreta e envia mensagem ao cliente
+void cd_command(int tipo,unsigned char data[]){
+  if(dados.aux==dados.last_seq){
+    limpa_string(data,63);
+    dados.sequencia++;
+    memcpy(data,dados.last_data,63);
+    if(dados.last_type==OK)
+      constroi_buffer(dados.soquete,dados.sequencia,data,OK,0);
+    else
+      constroi_buffer(dados.soquete,dados.sequencia,data,ERRO,1);
+  }
+  else{
+    dados.sequencia++;
+    data[dados.tamanho] = '\0';
+    if(!chdir(data)){
+      memcpy(data,dados.last_data,63);
+      dados.last_type=OK;
+      constroi_buffer(dados.soquete,dados.sequencia,data,OK,0);
+    }
+    else{
+      switch (errno){
+      case EACCES:
+      case EFAULT:
+        data[0]='B';    // retorna que não possui permissão de acesso
+        break;
+      case ENOTDIR:
+      case ENOENT:
+        data[0]='A';    // retorna que o diretório já exite
+        break;
+      default:
+        data[0]='Z';    // erros que não foram definidos em sala
+        break;
+      }
+      memcpy(data,dados.last_data,63);
+      dados.last_type=ERRO;
+      constroi_buffer(dados.soquete,dados.sequencia,data,ERRO,1);
+    }
+  }
+  if(dados.sequencia==16)
+    dados.sequencia=0;  
+}
+/*-------------------------------------------------------------------------------*/
+//Recebe o comando mkdir, interpreta e envia mensagem ao cliente
+void mkdir_command(int tipo,unsigned char data[]){
+  if(dados.aux==dados.last_seq){
+    limpa_string(data,63);
+    dados.sequencia++;
+    memcpy(data,dados.last_data,63);
+    dados.last_type=OK;
+    constroi_buffer(dados.soquete,dados.sequencia,data,OK,0);
+  }
+  else{
+    dados.sequencia++;
+    data[dados.tamanho] = '\0';
+    if(!mkdir(data,0700)){
+      memcpy(data,dados.last_data,63);
+      dados.last_type=OK;
+      constroi_buffer(dados.soquete,dados.sequencia,data,OK,0);
+    }
+    else{
+      switch (errno){
+      case EACCES:
+      case EFAULT:
+        data[0]='B';    // retorna que não possui permissão de acesso
+        break;
+      case EEXIST:
+        data[0]='C';    // diretório já existe
+        break;
+      case ENOSPC:
+        data[0]='E';    // retorna que não há espaço em disco para criar diretório
+        break; 
+      default:
+        data[0]='Z';    // erros que não foram definidos em sala
+        break;
+      }
+      memcpy(data,dados.last_data,63);
+      dados.last_type=ERRO;
+      constroi_buffer(dados.soquete,dados.sequencia,data,ERRO,1);
+    }
+  }
+  if(dados.sequencia==16)
+    dados.sequencia=0;
+}
+/*-------------------------------------------------------------------------------*/
+//Função que trata cada tipo de mensagem recebida
+void trata_tipo(int tipo,unsigned char data[]){
   switch (tipo)
   {
   case LS:
@@ -33,72 +117,10 @@ void trata_tipo(int tipo,unsigned char data[],int soquete){
     system("rm -f dados.txt");
     break;
   case CD:
-    if(aux==last_seq){
-      limpa_string(data,63);
-      sequencia++;
-      constroi_buffer(soquete,sequencia,data,OK,0);
-    }
-    else{
-      sequencia++;
-      data[tamanho] = '\0';
-      if(!chdir(data)){
-        // TO DO: Arrumar
-        constroi_buffer(soquete,sequencia,data,OK,0);
-      }
-      else{
-        switch (errno){
-        case EACCES:
-        case EFAULT:
-          data[0]='B';
-          break;
-        case ENOTDIR:
-        case ENOENT:
-          data[0]='A';
-          break;
-        default:
-          data[0]='Z';
-          break;
-        }
-        constroi_buffer(soquete,sequencia,data,ERRO,1);
-      }
-    }
-    if(sequencia==16)
-      sequencia=0;
+    cd_command(tipo,data);
     break;
   case MKDIR:
-      if(aux==last_seq){
-      limpa_string(data,63);
-      sequencia++;
-      constroi_buffer(soquete,sequencia,data,OK,0);
-    }
-    else{
-      sequencia++;
-      data[tamanho] = '\0';
-      if(!mkdir(data,0700)){
-        // TO DO: Arrumar
-        constroi_buffer(soquete,sequencia,data,OK,0);
-      }
-      else{
-        switch (errno){
-        case EACCES:
-        case EFAULT:
-          data[0]='B';
-          break;
-        case EEXIST:
-          data[0]='C';
-          break;
-        case ENOSPC:
-          data[0]='E';
-          break; 
-        default:
-          data[0]='Z';
-          break;
-        }
-        constroi_buffer(soquete,sequencia,data,ERRO,1);
-      }
-    }
-    if(sequencia==16)
-      sequencia=0;
+    mkdir_command(tipo,data);
     break;
   case GET:
 
@@ -122,34 +144,32 @@ void trata_tipo(int tipo,unsigned char data[],int soquete){
     break;
   }
 }
-
+/*-------------------------------------------------------------------------------*/
 int main(){
-  int buflen;
-  int sock_r;
   int tipo=DEFAULT;
-  sock_r = ConexaoRawSocket("enp7s0f0");
+  dados.soquete = ConexaoRawSocket("enp7s0f0");
   unsigned char *buffer = (unsigned char *) malloc(BYTES); //to receive data
   memset(buffer,0,BYTES);
   unsigned char data[63];
   limpa_string(buffer,BYTES);
   limpa_string(data,63);
-  sequencia=-1;
-  last_seq=15;
+  dados.sequencia=-1;
+  dados.last_seq=15;
   while(1)
   {  
     limpa_string(buffer,BYTES);
     limpa_string(data,63);
-    buflen=recvfrom(sock_r,buffer,BYTES,0,NULL,0);
-    if(buflen<0){
+    dados.buflen=recvfrom(dados.soquete,buffer,BYTES,0,NULL,0);
+    if(dados.buflen<0){
       printf("error in reading recvfrom function\n");
       return -1;
     }
     if(buffer[0]==126){
-      tamanho=DesmontaBuffer(buffer,data,&tipo,&last_seq,&aux);
-      if(tamanho!=DEFAULT)
-        trata_tipo(tipo,data,sock_r);
+      dados.tamanho=DesmontaBuffer(buffer,data,&tipo,&dados.last_seq,&dados.aux);
+      if(dados.tamanho!=DEFAULT)
+        trata_tipo(tipo,data);
       else
-        falha(sock_r,data);
+        falha(data);
     }
   }
   return 0;
