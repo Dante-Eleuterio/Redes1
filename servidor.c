@@ -6,7 +6,10 @@ args dados;      //Flags de controle de mensagens
 //Trata erro de recebimento e envia
 void falha(unsigned char data[]){
   limpa_string(data,63);
-  dados.sequencia++;
+  if(dados.sequencia==15)
+    dados.sequencia=0;
+  else
+    dados.sequencia++;
   if(dados.last_seq==15)   //Confere se chegou no final da dados.sequencia
     data[0]=0;    //Reinicia sequencia
   else
@@ -21,7 +24,10 @@ void cd_command(int tipo,unsigned char data[]){
   data[dados.tamanho] = '\0';
   if(dados.aux==dados.last_seq){
     limpa_string(data,63);
-    dados.sequencia++;
+    if(dados.sequencia==15)
+        dados.sequencia=0;
+    else
+        dados.sequencia++;
     memcpy(data,dados.last_data,63);
     data[dados.tamanho] = '\0';
     if(dados.last_type==OK)
@@ -30,7 +36,10 @@ void cd_command(int tipo,unsigned char data[]){
       constroi_buffer(dados.soquete,dados.sequencia,data,ERRO,1);
   }
   else{
-    dados.sequencia++;
+    if(dados.sequencia==15)
+        dados.sequencia=0;
+    else
+        dados.sequencia++;
     if(!chdir(data)){
       memcpy(data,dados.last_data,63);
       dados.last_type=OK;
@@ -64,14 +73,20 @@ void mkdir_command(int tipo,unsigned char data[]){
   data[dados.tamanho] = '\0';
   if(dados.aux==dados.last_seq){
     limpa_string(data,63);
-    dados.sequencia++;
+    if(dados.sequencia==15)
+      dados.sequencia=0;
+    else
+      dados.sequencia++;
     memcpy(data,dados.last_data,63);
     data[dados.tamanho] = '\0';
     dados.last_type=OK;
     constroi_buffer(dados.soquete,dados.sequencia,data,OK,0);
   }
   else{
-    dados.sequencia++;
+    if(dados.sequencia==15)
+      dados.sequencia=0;
+    else
+      dados.sequencia++;
     if(!mkdir(data,0700)){
       memcpy(dados.last_data,data,63);
       dados.last_type=OK;
@@ -107,11 +122,11 @@ void mkdir_command(int tipo,unsigned char data[]){
 void file_reader(unsigned char arq[]){
   FILE *fileptr;
   long filelen;
+  int FIM_ENVIADO=0;
   int msgs=0;
   int window=0;
   int count=0;
   int tipo_recebido=DEFAULT;
-  int multiplier=1;
   int sqc=0;
   int sqc_recv=0;
   unsigned char placeholder[63];
@@ -127,7 +142,6 @@ void file_reader(unsigned char arq[]){
   result= (unsigned char *)malloc(filelen * sizeof(unsigned char));
   fread(result,filelen,1,fileptr);
   fclose(fileptr);
-  
   while(1){
     sqc=dados.sequencia;    
     while(filelen>0 && window<4){
@@ -145,19 +159,29 @@ void file_reader(unsigned char arq[]){
       window++;
       filelen-=63;
       count+=63;
-      dados.sequencia++;
+      if(dados.sequencia==15)
+        dados.sequencia=0;
+      else
+        dados.sequencia++;
+      fprintf(stderr,"window: %d sqc: %d\n",window,dados.sequencia);
       constroi_buffer(dados.soquete,dados.sequencia,parcela,MOSTRA,strlen(parcela));
       limpa_string(parcela,63);
     }
-    window=0;
-    if(filelen<0){
-      dados.sequencia++;
+    if(window<4 && filelen<0){
+      if(dados.sequencia==15)
+        dados.sequencia=0;
+      else
+        dados.sequencia++;
+      FIM_ENVIADO=1;
       constroi_buffer(dados.soquete,dados.sequencia,parcela,FIM,0);
     }
+    window=0;
+    while(1){
       dados.buflen=recvfrom(dados.soquete,buffer,BYTES,0,NULL,0);
-      sqc_recv=DesmontaBuffer(buffer,placeholder,&tipo_recebido,&dados.last_seq,&dados.aux);  
       if(buffer[0]==126){
+        sqc_recv=DesmontaBuffer(buffer,placeholder,&tipo_recebido,&dados.last_seq,&dados.aux);  
         if(tipo_recebido==NACK || (tipo_recebido==ACK && sqc_recv!=dados.sequencia)){
+          FIM_ENVIADO=0;
           filelen+=63*msgs;
           count-=63*msgs;
           msgs=0;
@@ -165,12 +189,18 @@ void file_reader(unsigned char arq[]){
           break;
         }
         if(tipo_recebido==ACK && sqc_recv==dados.sequencia){
-          break;
+          if(FIM_ENVIADO){
+            return;
+          }
+          else{
+            break;
+          }
+            
         }
       }
-  }        
-  
-}
+    }
+  } 
+}        
 
 
 void ls_command(int tipo,unsigned char data[]){
@@ -187,8 +217,7 @@ void ls_command(int tipo,unsigned char data[]){
   file_reader("dados.txt");
   //windows_send(buffer);
 
-  
-  // system("rm -rf tmp/dados.txt");
+  system("rm -rf tmp/dados.txt");
 }
 /*-------------------------------------------------------------------------------*/
 //Função que trata cada tipo de mensagem recebida
@@ -243,7 +272,7 @@ int main(){
     limpa_string(data,63);
     dados.buflen=recvfrom(dados.soquete,buffer,BYTES,0,NULL,0);
     if(dados.buflen<0){
-      printf("error in reading recvfrom function\n");
+      fprintf(stderr,"error in reading recvfrom function\n");
       return -1;
     }
     if(buffer[0]==126){
