@@ -80,10 +80,82 @@ void list_local(int *args_ls){
     *args_ls=0;
 }
 void list_remoto(unsigned char input[],int *args_ls,int tipo){
+    int window=0;
     input[0]=*args_ls;
+    *args_ls=0;
+    unsigned char buffer[BYTES];
+    unsigned char aux[63];
+    int tipo_recebido=DEFAULT;
+    int size=0;
     dados.sequencia++;
     constroi_buffer(dados.soquete,dados.sequencia,input,tipo,1);
-    *args_ls=0;
+    while(tipo_recebido!=FIM){
+        gettimeofday(&tempo_inicial,NULL);
+        while(tipo_recebido!=FIM){
+            limpa_string(aux,63);
+            dados.buflen=recvfrom(dados.soquete,buffer,BYTES,0,NULL,0);
+            if(errno!=11 && dados.buflen<0){
+                fprintf(stderr,"error in reading recvfrom function\n");
+                fprintf(stderr,"%s\n",strerror(errno));
+                exit(-1);
+            }
+            if(buffer[0]==126){
+                size=DesmontaBuffer(buffer,aux,&tipo_recebido,&dados.last_seq,&dados.aux);
+            }
+            if(tipo_recebido==NACK){
+                dados.tentativas=0;
+                window=0;
+                limpa_string(input,BYTES);
+                if(dados.last_seq==15)
+                    input[0]=0;
+                else
+                    input[0]=dados.last_seq+1;
+                tipo=NACK;
+                break;
+            }
+            
+            if(tipo_recebido==FIM){
+                limpa_string(input,BYTES);
+                input[0]=dados.last_seq;
+                dados.sequencia++;
+                tipo=ACK;
+                constroi_buffer(dados.soquete,dados.sequencia,input,tipo,1);
+            }
+
+            if(tipo_recebido==MOSTRA){
+                window++;
+                dados.tentativas=0;
+                for(int i=0;i<size;i++)
+                    fprintf(stderr,"%c",aux[i]);
+                if(window==4){
+                    window=0;
+                    limpa_string(input,BYTES);
+                    input[0]=dados.last_seq;
+                    dados.sequencia++;
+                    tipo=ACK;
+                    constroi_buffer(dados.soquete,dados.sequencia,input,tipo,1);
+                }
+            }
+            gettimeofday(&relogio,NULL);
+            if(relogio.tv_sec-tempo_inicial.tv_sec>=15 && tipo_recebido!=FIM && tipo_recebido!=MOSTRA){
+                fprintf(stderr,"TIMEOUT\n");
+                dados.tentativas++;
+                break;
+            }
+            memset(buffer,0,BYTES);
+        }
+        if(dados.tentativas==2){
+            dados.tentativas=0;
+            fprintf(stderr,"Tempo de espera excedido. Por favor tente novamente\n");
+            break;
+        }
+        if(tipo_recebido!=FIM){
+            tipo_recebido=DEFAULT;
+            constroi_buffer(dados.soquete,dados.sequencia,input,tipo,1);
+        }
+    }
+    dados.tentativas=0;
+    tipo_recebido=DEFAULT; 
 }
 void cd_remoto(unsigned char dir[],int tipo){
     unsigned char buffer[BYTES];
@@ -95,11 +167,10 @@ void cd_remoto(unsigned char dir[],int tipo){
         gettimeofday(&tempo_inicial,NULL);
         while(tipo_recebido!=OK){
             limpa_string(aux,63);
-            printf("tentando receber\n");
             dados.buflen=recvfrom(dados.soquete,buffer,BYTES,0,NULL,0);
             if(errno!=11 && dados.buflen<0){
-                printf("error in reading recvfrom function\n");
-                printf("%s\n",strerror(errno));
+                fprintf(stderr,"error in reading recvfrom function\n");
+                fprintf(stderr,"%s\n",strerror(errno));
                 exit(-1);
             }
             if(buffer[0]==126){
@@ -114,20 +185,20 @@ void cd_remoto(unsigned char dir[],int tipo){
                 switch (aux[0])
                 {
                 case 'A':
-                    printf("Diretorio inexistente\n");
+                    fprintf(stderr,"Diretorio inexistente\n");
                     break;
                 case 'B':
-                    printf("Sem permissao de Acesso\n");
+                    fprintf(stderr,"Sem permissao de Acesso\n");
                     break;                            
                 default:
-                    printf("Erro Desconhecido\n");
+                    fprintf(stderr,"Erro Desconhecido\n");
                     break;
                 }
                 break;
             }
             gettimeofday(&relogio,NULL);
             if(relogio.tv_sec-tempo_inicial.tv_sec>=15 && tipo_recebido!=OK){
-                printf("TIMEOUT\n");
+                fprintf(stderr,"TIMEOUT\n");
                 dados.tentativas++;
                 break;
             }
@@ -138,7 +209,7 @@ void cd_remoto(unsigned char dir[],int tipo){
         }
         if(dados.tentativas==2){
             dados.tentativas=0;
-            printf("Tempo de espera excedido. Por favor tente novamente\n");
+            fprintf(stderr,"Tempo de espera excedido. Por favor tente novamente\n");
             break;
         }
         if(tipo_recebido!=OK){
@@ -165,7 +236,7 @@ void mkdir_remoto(unsigned char dir[],int tipo){
             memset(buffer,0,BYTES);
             dados.buflen=recvfrom(dados.soquete,buffer,BYTES,0,NULL,0);
             if(errno!=11 && dados.buflen<0){
-                printf("error in reading recvfrom function\n");
+                fprintf(stderr,"error in reading recvfrom function\n");
                 exit(-1);
             }
             if(buffer[0]==126){
@@ -180,23 +251,23 @@ void mkdir_remoto(unsigned char dir[],int tipo){
                 switch (aux[0])
                 {
                 case 'C':
-                    printf("Diretorio ja existente\n");
+                    fprintf(stderr,"Diretorio ja existente\n");
                     break;
                 case 'B':
-                    printf("Sem permissao de Acesso\n");
+                    fprintf(stderr,"Sem permissao de Acesso\n");
                     break;                            
                 case 'E':
-                    printf("Nao ha espaco para criar o diretorio\n");
+                    fprintf(stderr,"Nao ha espaco para criar o diretorio\n");
                     break;                            
                 default:
-                    printf("Erro Desconhecido\n");
+                    fprintf(stderr,"Erro Desconhecido\n");
                     break;
                 }
                 break;
             }
             gettimeofday(&relogio,NULL);
             if(relogio.tv_sec-tempo_inicial.tv_sec>=10 && tipo_recebido!=OK){
-                printf("TIMEOUT\n");
+                fprintf(stderr,"TIMEOUT\n");
                 dados.tentativas++;
                 break;
             }
@@ -206,7 +277,7 @@ void mkdir_remoto(unsigned char dir[],int tipo){
         }
         if(dados.tentativas==2){
             dados.tentativas=0;
-            printf("Tempo de espera excedido. Por favor tente novamente\n");
+            fprintf(stderr,"Tempo de espera excedido. Por favor tente novamente\n");
             break;
         }
         if(tipo_recebido!=OK){
@@ -237,7 +308,7 @@ void envia(unsigned char buffer[63]){
         limpa_string(dir,63);
         limpa_string(aux,63);
         char cwd[PATH_MAX];
-        printf("Cliente:%s$ ",getcwd(cwd, sizeof(cwd)));
+        fprintf(stderr,"Cliente:%s$ ",getcwd(cwd, sizeof(cwd)));
         fgets(input,BYTES,stdin);
         tipo=retorna_tipo(input,&args_ls,dir);
         limpa_string(input,BYTES);
@@ -281,7 +352,7 @@ int main(int argc, char const *argv[]){
     dados.soquete= ConexaoRawSocket("enp7s0f0");
     if(dados.soquete<0)
     {
-        printf("error in sending....sendlen=%d....errno=%d\n",dados.soquete,errno);
+        fprintf(stderr,"error in sending....sendlen=%d....errno=%d\n",dados.soquete,errno);
         return -1;
     }
     setsockopt(dados.soquete,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));
