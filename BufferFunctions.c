@@ -26,7 +26,7 @@ void constroi_buffer(int soquete,int sequencia,unsigned char input[],int tipo,in
     head->mi=126;
     head->tamanho=tamanho;
     head->sequencia=sequencia;
-    head->tipo=tipo;
+    head->tipo=tipo ;
     int header_len=sizeof(header);
     int paridade=0;
     for (int i = header_len; i < tamanho+header_len; i++)
@@ -58,6 +58,7 @@ int DesmontaBuffer(unsigned char buffer[],unsigned char dados[],int *tipo,int *l
     for (int i = 0; i < head->tamanho; i++){
         paridade^=data[i];
     }
+    
     if(head->sequencia!=msg_esperada || paridade!=buffer[BYTES-1]){
         printf("%d  %d  %d  %d\n",head->sequencia, msg_esperada, paridade, buffer[BYTES-1]);
         *tipo=NACK;
@@ -66,11 +67,24 @@ int DesmontaBuffer(unsigned char buffer[],unsigned char dados[],int *tipo,int *l
     *last_seq=head->sequencia;
     *tipo=head->tipo;
     memcpy(dados,data,63);
+
+    if(head->tipo==NACK || head->tipo==ACK){
+        return dados[0];
+    }
     printf("recebendo\n");
     imprime_buffer(head);
     return head->tamanho;
 }
 
+// void windows_send(char *buffer, int size){
+
+
+// }
+
+// void file_reader(char *arquivo, char *buffer, int size){
+
+
+// }
 
 void limpa_string(unsigned char input[],int n){
     memset(input,0,n);

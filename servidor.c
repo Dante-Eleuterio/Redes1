@@ -18,10 +18,12 @@ void falha(unsigned char data[]){
 /*-------------------------------------------------------------------------------*/
 //Recebe o comando cd, interpreta e envia mensagem ao cliente
 void cd_command(int tipo,unsigned char data[]){
+  data[dados.tamanho] = '\0';
   if(dados.aux==dados.last_seq){
     limpa_string(data,63);
     dados.sequencia++;
     memcpy(data,dados.last_data,63);
+    data[dados.tamanho] = '\0';
     if(dados.last_type==OK)
       constroi_buffer(dados.soquete,dados.sequencia,data,OK,0);
     else
@@ -29,7 +31,6 @@ void cd_command(int tipo,unsigned char data[]){
   }
   else{
     dados.sequencia++;
-    data[dados.tamanho] = '\0';
     if(!chdir(data)){
       memcpy(data,dados.last_data,63);
       dados.last_type=OK;
@@ -49,7 +50,7 @@ void cd_command(int tipo,unsigned char data[]){
         data[0]='Z';    // erros que não foram definidos em sala
         break;
       }
-      memcpy(data,dados.last_data,63);
+      memcpy(dados.last_data,data,63);
       dados.last_type=ERRO;
       constroi_buffer(dados.soquete,dados.sequencia,data,ERRO,1);
     }
@@ -60,18 +61,19 @@ void cd_command(int tipo,unsigned char data[]){
 /*-------------------------------------------------------------------------------*/
 //Recebe o comando mkdir, interpreta e envia mensagem ao cliente
 void mkdir_command(int tipo,unsigned char data[]){
+  data[dados.tamanho] = '\0';
   if(dados.aux==dados.last_seq){
     limpa_string(data,63);
     dados.sequencia++;
     memcpy(data,dados.last_data,63);
+    data[dados.tamanho] = '\0';
     dados.last_type=OK;
     constroi_buffer(dados.soquete,dados.sequencia,data,OK,0);
   }
   else{
     dados.sequencia++;
-    data[dados.tamanho] = '\0';
     if(!mkdir(data,0700)){
-      memcpy(data,dados.last_data,63);
+      memcpy(dados.last_data,data,63);
       dados.last_type=OK;
       constroi_buffer(dados.soquete,dados.sequencia,data,OK,0);
     }
@@ -91,7 +93,7 @@ void mkdir_command(int tipo,unsigned char data[]){
         data[0]='Z';    // erros que não foram definidos em sala
         break;
       }
-      memcpy(data,dados.last_data,63);
+      memcpy(dados.last_data,data,63);
       dados.last_type=ERRO;
       constroi_buffer(dados.soquete,dados.sequencia,data,ERRO,1);
     }
@@ -100,21 +102,101 @@ void mkdir_command(int tipo,unsigned char data[]){
     dados.sequencia=0;
 }
 /*-------------------------------------------------------------------------------*/
+//Recebe o comando ls, interpreta e envia arquivo contendo a listagem do diretório
+
+void file_reader(unsigned char arq[]){
+  FILE *fileptr;
+  long filelen;
+  int msgs=0;
+  int window=0;
+  int count=0;
+  int tipo_recebido=DEFAULT;
+  int multiplier=1;
+  int sqc=0;
+  int sqc_recv=0;
+  unsigned char placeholder[63];
+  unsigned char *result;
+  unsigned char parcela[63];
+  unsigned char buffer[BYTES];
+
+  fileptr = fopen(arq,"rb");
+  fseek(fileptr,0,SEEK_END);
+  filelen=ftell(fileptr);
+  rewind(fileptr);
+  
+  result= (unsigned char *)malloc(filelen * sizeof(unsigned char));
+  fread(result,filelen,1,fileptr);
+  fclose(fileptr);
+  
+  while(1){
+    sqc=dados.sequencia;    
+    while(filelen>0 && window<4){
+      if(filelen>=63){
+        for(int i=0;i<63;i++){
+          parcela[i]=result[i+count];
+        }
+      }
+      else{
+        for(int i=0;i<filelen;i++){
+            parcela[i]=result[i+count];
+          }
+      }
+      msgs++;
+      window++;
+      filelen-=63;
+      count+=63;
+      dados.sequencia++;
+      constroi_buffer(dados.soquete,dados.sequencia,parcela,MOSTRA,strlen(parcela));
+      limpa_string(parcela,63);
+    }
+    window=0;
+    if(filelen<0){
+      dados.sequencia++;
+      constroi_buffer(dados.soquete,dados.sequencia,parcela,FIM,0);
+    }
+      dados.buflen=recvfrom(dados.soquete,buffer,BYTES,0,NULL,0);
+      sqc_recv=DesmontaBuffer(buffer,placeholder,&tipo_recebido,&dados.last_seq,&dados.aux);  
+      if(buffer[0]==126){
+        if(tipo_recebido==NACK || (tipo_recebido==ACK && sqc_recv!=dados.sequencia)){
+          filelen+=63*msgs;
+          count-=63*msgs;
+          msgs=0;
+          dados.sequencia=sqc;
+          break;
+        }
+        if(tipo_recebido==ACK && sqc_recv==dados.sequencia){
+          break;
+        }
+      }
+  }        
+  
+}
+
+
+void ls_command(int tipo,unsigned char data[]){
+  unsigned char *buffer;
+  if(data[0]==0)
+    system("ls > dados.txt");
+  if(data[0]==1)
+    system("ls -a > dados.txt");
+  if(data[0]==2)
+    system("ls -l > dados.txt");
+  if(data[0]==3)
+    system("ls -a -l > dados.txt");
+  //Envio do arquivo contendo o ls
+  file_reader("dados.txt");
+  //windows_send(buffer);
+
+  
+  // system("rm -rf tmp/dados.txt");
+}
+/*-------------------------------------------------------------------------------*/
 //Função que trata cada tipo de mensagem recebida
 void trata_tipo(int tipo,unsigned char data[]){
   switch (tipo)
   {
   case LS:
-      if(data[0]==0)
-        system("ls > dados.txt");
-      if(data[0]==1)
-        system("ls -a > dados.txt");
-      if(data[0]==2)
-        system("ls -l > dados.txt");
-      if(data[0]==3)
-        system("ls -a -l > dados.txt");
-    system("cat dados.txt");
-    system("rm -f dados.txt");
+    ls_command(tipo,data);
     break;
   case CD:
     cd_command(tipo,data);

@@ -31,6 +31,8 @@
   #define DESCRITOR 24
   #define DADOS 32
 
+
+
   //TIPOS LOCAIS
   #define LSL 35
   #define CDL 36
@@ -38,7 +40,6 @@
 
   #define FIM 46
   #define MOSTRA 63
-
 //FIM TIPOS DE MENSAGENS
 
 //ERROS
