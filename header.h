@@ -43,7 +43,7 @@
 //FIM TIPOS DE MENSAGENS
 
 //ERROS
-
+  #define FEITO 80
 
 //FIM ERROS
 

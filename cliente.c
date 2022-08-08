@@ -87,7 +87,10 @@ void list_remoto(unsigned char input[],int *args_ls,int tipo){
     unsigned char aux[63];
     int tipo_recebido=DEFAULT;
     int size=0;
-    dados.sequencia++;
+    if (dados.sequencia==15)
+        dados.sequencia=0;
+    else
+        dados.sequencia++;
     constroi_buffer(dados.soquete,dados.sequencia,input,tipo,1);
     while(tipo_recebido!=FIM){
         gettimeofday(&tempo_inicial,NULL);
@@ -117,7 +120,10 @@ void list_remoto(unsigned char input[],int *args_ls,int tipo){
             if(tipo_recebido==FIM){
                 limpa_string(input,BYTES);
                 input[0]=dados.last_seq;
-                dados.sequencia++;
+                if (dados.sequencia==15)
+                    dados.sequencia=0;
+                else
+                    dados.sequencia++;
                 tipo=ACK;
                 constroi_buffer(dados.soquete,dados.sequencia,input,tipo,1);
             }
@@ -131,7 +137,10 @@ void list_remoto(unsigned char input[],int *args_ls,int tipo){
                     window=0;
                     limpa_string(input,BYTES);
                     input[0]=dados.last_seq;
-                    dados.sequencia++;
+                    if (dados.sequencia==15)
+                        dados.sequencia=0;
+                    else
+                        dados.sequencia++;
                     tipo=ACK;
                     constroi_buffer(dados.soquete,dados.sequencia,input,tipo,1);
                 }
@@ -149,8 +158,12 @@ void list_remoto(unsigned char input[],int *args_ls,int tipo){
             fprintf(stderr,"Tempo de espera excedido. Por favor tente novamente\n");
             break;
         }
-        if(tipo_recebido!=FIM){
+        if(tipo_recebido!=FIM && tipo_recebido!=MOSTRA){
             tipo_recebido=DEFAULT;
+            if (dados.sequencia==15)
+                dados.sequencia=0;
+            else
+                dados.sequencia++;
             constroi_buffer(dados.soquete,dados.sequencia,input,tipo,1);
         }
     }
@@ -161,7 +174,10 @@ void cd_remoto(unsigned char dir[],int tipo){
     unsigned char buffer[BYTES];
     unsigned char aux[63];
     int tipo_recebido=DEFAULT;
-    dados.sequencia++;
+    if (dados.sequencia==15)
+        dados.sequencia=0;
+    else
+        dados.sequencia++;
     constroi_buffer(dados.soquete,dados.sequencia,dir,tipo,strlen(dir));
     while(tipo_recebido!=OK){
         gettimeofday(&tempo_inicial,NULL);
@@ -174,7 +190,10 @@ void cd_remoto(unsigned char dir[],int tipo){
                 exit(-1);
             }
             if(buffer[0]==126){
-                DesmontaBuffer(buffer,aux,&tipo_recebido,&dados.last_seq,&dados.aux);
+                if(DesmontaBuffer(buffer,aux,&tipo_recebido,&dados.last_seq,&dados.aux)==FEITO){
+                    tipo_recebido=DEFAULT;
+                    break;
+                }
             }
             if(tipo_recebido==NACK){
                 dados.tentativas=0;
@@ -227,7 +246,10 @@ void mkdir_remoto(unsigned char dir[],int tipo){
     unsigned char buffer[BYTES];
     unsigned char aux[63];
     int tipo_recebido=DEFAULT;
-    dados.sequencia++;
+    if (dados.sequencia==15)
+        dados.sequencia=0;
+    else
+        dados.sequencia++;
     constroi_buffer(dados.soquete,dados.sequencia,dir,tipo,strlen(dir));
     while(tipo_recebido!=OK){
         gettimeofday(&tempo_inicial,NULL);
@@ -333,12 +355,8 @@ void envia(unsigned char buffer[63]){
                 mkdir_remoto(dir,tipo);       
                 break;
             default:
-                dados.sequencia++;
-                constroi_buffer(dados.soquete,dados.sequencia,input,tipo,strlen(input));
                 break;
         }
-        if (dados.sequencia==15)
-            dados.sequencia=0;
     }
 }
 
