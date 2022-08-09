@@ -58,25 +58,34 @@ int DesmontaBuffer(unsigned char buffer[],unsigned char dados[],int *tipo,int *l
     for (int i = 0; i < head->tamanho; i++){
         paridade^=data[i];
     }
+    if(paridade!=buffer[BYTES-1]){
+        fprintf(stderr,"%d  %d  %d  %d\n",head->sequencia, msg_esperada, paridade, buffer[BYTES-1]);
+        *tipo=NACK;
+        return DEFAULT;
+    }
     switch (msg_esperada){
         case 0:
-            if(head->sequencia>=13 && head->sequencia<=15)
+            if(head->sequencia==12 || head->sequencia==13 || head->sequencia==14 || head->sequencia==15)
                 return FEITO;
             break;
         case 1:
-            if(head->sequencia==14 || head->sequencia==15 || head->sequencia==0)
+            if(head->sequencia==13 || head->sequencia==14 || head->sequencia==15 || head->sequencia==0)
                 return FEITO;
             break;
         case 2:
-            if(head->sequencia==15 || head->sequencia==0 || head->sequencia==1)
+            if(head->sequencia==14 || head->sequencia==15 || head->sequencia==0 || head->sequencia==1)
+                return FEITO;
+            break;
+        case 3:
+            if(head->sequencia==15 || head->sequencia==0 || head->sequencia==1 || head->sequencia==2)
                 return FEITO;
             break;
         default:
-            if(head->sequencia<msg_esperada && head->sequencia>=msg_esperada-3)
+            if(head->sequencia<msg_esperada && head->sequencia>=msg_esperada-4)
                 return FEITO;
             break;
     }
-    if(head->sequencia!=msg_esperada || paridade!=buffer[BYTES-1]){
+    if(head->sequencia!=msg_esperada){
         fprintf(stderr,"%d  %d  %d  %d\n",head->sequencia, msg_esperada, paridade, buffer[BYTES-1]);
         *tipo=NACK;
         return DEFAULT;
