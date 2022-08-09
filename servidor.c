@@ -129,8 +129,9 @@ void file_reader(unsigned char arq[]){
   int tipo_recebido=DEFAULT;
   int sqc=0;
   int sqc_recv=0;
+  int old_count=0;
+  int old_filelen=0;
   unsigned char placeholder[63];
-  unsigned char *result;
   unsigned char parcela[63];
   unsigned char buffer[BYTES];
 
@@ -138,36 +139,30 @@ void file_reader(unsigned char arq[]){
   fseek(fileptr,0,SEEK_END);
   filelen=ftell(fileptr);
   rewind(fileptr);
-  
-  result= (unsigned char *)malloc(filelen * sizeof(unsigned char));
-  fread(result,filelen,1,fileptr);
-  fclose(fileptr);
   while(1){
-    sqc=dados.sequencia;    
+    sqc=dados.sequencia;
+    old_count=count;
+    old_filelen=filelen;    
     while(filelen>0 && window<4){
       if(filelen>=63){
-        for(int i=0;i<63;i++){
-          parcela[i]=result[i+count];
-        }
+        fread(parcela,sizeof(char),63,fileptr);
+        count+=63;
+        filelen-=63;
       }
       else{
-        for(int i=0;i<filelen;i++){
-            parcela[i]=result[i+count];
-          }
+        fread(parcela,sizeof(char),filelen,fileptr);
+        count+=filelen;
+        filelen-=filelen;
       }
-      msgs++;
       window++;
-      filelen-=63;
-      count+=63;
       if(dados.sequencia==15)
         dados.sequencia=0;
       else
         dados.sequencia++;
-      fprintf(stderr,"window: %d sqc: %d\n",window,dados.sequencia);
       constroi_buffer(dados.soquete,dados.sequencia,parcela,MOSTRA,strlen(parcela));
       limpa_string(parcela,63);
     }
-    if(window<4 && filelen<0){
+    if(window<4 && filelen<=0){
       if(dados.sequencia==15)
         dados.sequencia=0;
       else
@@ -182,14 +177,15 @@ void file_reader(unsigned char arq[]){
         sqc_recv=DesmontaBuffer(buffer,placeholder,&tipo_recebido,&dados.last_seq,&dados.aux);  
         if(tipo_recebido==NACK || (tipo_recebido==ACK && sqc_recv!=dados.sequencia)){
           FIM_ENVIADO=0;
-          filelen+=63*msgs;
-          count-=63*msgs;
-          msgs=0;
+          filelen=old_filelen;
+          count=old_count;
           dados.sequencia=sqc;
+          fseek(fileptr,-count,SEEK_CUR);
           break;
         }
         if(tipo_recebido==ACK && sqc_recv==dados.sequencia){
           if(FIM_ENVIADO){
+            fclose(fileptr);
             return;
           }
           else{
@@ -200,6 +196,7 @@ void file_reader(unsigned char arq[]){
       }
     }
   } 
+  fclose(fileptr);
 }        
 
 
@@ -217,7 +214,7 @@ void ls_command(int tipo,unsigned char data[]){
   file_reader("dados.txt");
   //windows_send(buffer);
 
-  system("rm -rf tmp/dados.txt");
+  system("rm -rf dados.txt");
 }
 /*-------------------------------------------------------------------------------*/
 //Função que trata cada tipo de mensagem recebida
