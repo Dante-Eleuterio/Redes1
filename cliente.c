@@ -1,6 +1,5 @@
 #include "header.h"
 #include "BufferFunctions.h"
-#include <sys/time.h>
 struct timeval relogio,timeout,tempo_inicial;
 args dados;
 
@@ -80,6 +79,9 @@ void list_local(int *args_ls){
     *args_ls=0;
 }
 void list_remoto(unsigned char input[],int *args_ls,int tipo){
+    FILE* arq ;
+    arq = fopen ("flor.jpg", "w") ;
+    int ret=0;
     int window=0;
     input[0]=*args_ls;
     *args_ls=0;
@@ -96,44 +98,36 @@ void list_remoto(unsigned char input[],int *args_ls,int tipo){
         gettimeofday(&tempo_inicial,NULL);
         while(tipo_recebido!=FIM){
             limpa_string(aux,63);
+            errno=0;
             dados.buflen=recvfrom(dados.soquete,buffer,BYTES,0,NULL,0);
             if(errno!=11 && dados.buflen<0){
                 fprintf(stderr,"error in reading recvfrom function\n");
                 fprintf(stderr,"%s\n",strerror(errno));
                 exit(-1);
             }
-            if(buffer[0]==126){
-                size=DesmontaBuffer(buffer,aux,&tipo_recebido,&dados.last_seq,&dados.aux);
-            }
-            if(tipo_recebido==NACK){
-                dados.tentativas=0;
-                window=0;
-                limpa_string(input,BYTES);
-                if(dados.last_seq==15)
-                    input[0]=0;
-                else
-                    input[0]=dados.last_seq+1;
-                tipo=NACK;
-                break;
-            }
             
-            if(tipo_recebido==FIM){
-                limpa_string(input,BYTES);
-                input[0]=dados.last_seq;
-                if (dados.sequencia==15)
-                    dados.sequencia=0;
-                else
-                    dados.sequencia++;
-                tipo=ACK;
-                constroi_buffer(dados.soquete,dados.sequencia,input,tipo,1);
-            }
+            if(errno!=11 && buffer[0]==126){
+      
+                size=DesmontaBuffer(buffer,aux,&tipo_recebido,&dados.last_seq,&dados.aux);
 
-            if(tipo_recebido==MOSTRA){
-                window++;
-                dados.tentativas=0;
-                for(int i=0;i<size;i++)
-                    fprintf(stderr,"%c",aux[i]);
-                if(window==4){
+                if(tipo_recebido==NACK){
+                    dados.tentativas=0;
+                    window=0;
+                    limpa_string(input,BYTES);
+                    if(dados.last_seq==15)
+                        input[0]=0;
+                    else
+                        input[0]=dados.last_seq+1;
+                    if (dados.sequencia==15)
+                        dados.sequencia=0;
+                    else
+                        dados.sequencia++;
+                    tipo=NACK;
+                    constroi_buffer(dados.soquete,dados.sequencia,input,tipo,1);
+                    break;
+                }
+                
+                if(tipo_recebido==FIM){
                     window=0;
                     limpa_string(input,BYTES);
                     input[0]=dados.last_seq;
@@ -143,32 +137,50 @@ void list_remoto(unsigned char input[],int *args_ls,int tipo){
                         dados.sequencia++;
                     tipo=ACK;
                     constroi_buffer(dados.soquete,dados.sequencia,input,tipo,1);
+                    fprintf(stderr,"\n");
                 }
-            }
-            gettimeofday(&relogio,NULL);
-            if(relogio.tv_sec-tempo_inicial.tv_sec>=15 && tipo_recebido!=FIM && tipo_recebido!=MOSTRA){
-                fprintf(stderr,"TIMEOUT\n");
-                dados.tentativas++;
-                break;
+
+                if(tipo_recebido==MOSTRA){
+                    window++;
+                    dados.tentativas=0;
+                    ret = fwrite (aux, size,1 , arq) ;
+                    if (ret)
+                        printf ("Gravou %d valores com sucesso!\n", ret) ;
+                    else
+                        printf ("Erro ao gravar...\n") ;
+                    // fprintf(stderr,"%s",aux);
+                    if(window==4){
+                        window=0;
+                        limpa_string(input,BYTES);
+                        input[0]=dados.last_seq;
+                        if (dados.sequencia==15)
+                            dados.sequencia=0;
+                        else
+                            dados.sequencia++;
+                        tipo=ACK;
+                        constroi_buffer(dados.soquete,dados.sequencia,input,tipo,1);
+                    }
+                }
             }
             memset(buffer,0,BYTES);
         }
-        if(dados.tentativas==2){
-            dados.tentativas=0;
-            fprintf(stderr,"Tempo de espera excedido. Por favor tente novamente\n");
-            break;
-        }
-        if(tipo_recebido!=FIM && tipo_recebido!=MOSTRA){
-            tipo_recebido=DEFAULT;
-            if (dados.sequencia==15)
-                dados.sequencia=0;
-            else
-                dados.sequencia++;
-            constroi_buffer(dados.soquete,dados.sequencia,input,tipo,1);
-        }
+        // if(dados.tentativas==2){
+        //     dados.tentativas=0;
+        //     fprintf(stderr,"Tempo de espera excedido. Por favor tente novamente\n");
+        //     break;
+        // }
+        // if(tipo_recebido!=FIM && tipo_recebido!=MOSTRA){
+        //     tipo_recebido=DEFAULT;
+        //     if (dados.sequencia==15)
+        //         dados.sequencia=0;
+        //     else
+        //         dados.sequencia++;
+        //     constroi_buffer(dados.soquete,dados.sequencia,input,tipo,1);
+        // }
     }
     dados.tentativas=0;
     tipo_recebido=DEFAULT; 
+    fclose(arq);
 }
 void cd_remoto(unsigned char dir[],int tipo){
     unsigned char buffer[BYTES];
@@ -316,7 +328,7 @@ void inicializa(int *tipo,int *args_ls){
     dados.tentativas=0;
     dados.buflen=0;
     dados.last_seq=15;
-    dados.sequencia=-1;
+    dados.sequencia=15;
     dados.aux=0;
     *args_ls=0;
     *tipo=0;
@@ -364,7 +376,7 @@ void envia(unsigned char buffer[63]){
 
 
 int main(int argc, char const *argv[]){
-    timeout.tv_sec=5;
+    timeout.tv_sec=2;
     unsigned char *buffer = (unsigned char *) malloc(BYTES); //to receive data
     memset(buffer,0,BYTES);
     dados.soquete= ConexaoRawSocket("enp7s0f0");
@@ -376,7 +388,7 @@ int main(int argc, char const *argv[]){
     setsockopt(dados.soquete,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));
     system("clear");
     envia(buffer);
-
+    free(buffer);
 
 
 

@@ -17,7 +17,8 @@
 #include <limits.h>
 #include <dirent.h>
 #include <sys/stat.h>
-
+#include <sys/time.h>
+#include <sys/wait.h>
 //TIPOS DE MENSAGENS
   #define OK 1
   #define NACK 2

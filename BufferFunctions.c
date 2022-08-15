@@ -35,8 +35,9 @@ void constroi_buffer(int soquete,int sequencia,unsigned char input[],int tipo,in
         paridade^=sendbuff[i];
     }
     sendbuff[BYTES-1]=paridade;
-    printf("enviando\n");
-    imprime_buffer(head);
+    // fprintf(stderr,"\nenviando\n");
+    // imprime_buffer(head);
+    // fprintf(stderr,"\n");
     sendto(soquete,sendbuff,BYTES,0,NULL,0);
     free(sendbuff);
 }
@@ -50,8 +51,9 @@ int DesmontaBuffer(unsigned char buffer[],unsigned char dados[],int *tipo,int *l
     header *head = (header *)(buffer);
     int paridade=0;
     unsigned char *data = (buffer + sizeof(header));
-    fprintf(stderr,"recebendo\n");
-    imprime_buffer(head);
+    // fprintf(stderr,"\nrecebendo\n");
+    // imprime_buffer(head);
+    // fprintf(stderr,"\n");
         
     if(head->sequencia==*last_seq){
         *tipo=head->tipo;
