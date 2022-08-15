@@ -50,6 +50,9 @@ int DesmontaBuffer(unsigned char buffer[],unsigned char dados[],int *tipo,int *l
     header *head = (header *)(buffer);
     int paridade=0;
     unsigned char *data = (buffer + sizeof(header));
+    fprintf(stderr,"recebendo\n");
+    imprime_buffer(head);
+        
     if(head->sequencia==*last_seq){
         *tipo=head->tipo;
         *seq_rec=head->sequencia;
@@ -95,8 +98,6 @@ int DesmontaBuffer(unsigned char buffer[],unsigned char dados[],int *tipo,int *l
     memcpy(dados,data,63);
 
     if(head->tipo==NACK || head->tipo==ACK){
-        printf("recebendo\n");
-        imprime_buffer(head);
         return dados[0];
     }
     
