@@ -38,11 +38,23 @@ void constroi_buffer(int soquete,int sequencia,unsigned char input[],int tipo,in
     // fprintf(stderr,"\nenviando\n");
     // imprime_buffer(head);
     // fprintf(stderr,"\n");
-    sendto(soquete,sendbuff,BYTES,0,NULL,0);
+    unsigned long mask[BYTES];
+    memset(mask,-1,sizeof(unsigned long)*BYTES);
+    for (int i = 0; i < BYTES; i++)
+        mask[i]=(unsigned long) sendbuff[i];
+
+    usleep(0);
+    send(soquete,mask,sizeof(unsigned long)*BYTES,0);
     free(sendbuff);
 }
 
-int DesmontaBuffer(unsigned char buffer[],unsigned char dados[],int *tipo,int *last_seq,int *seq_rec){
+int DesmontaBuffer(unsigned long mask[],unsigned char dados[],int *tipo,int *last_seq,int *seq_rec){
+    unsigned char buffer[BYTES];
+    for (int i = 0; i < BYTES; i++)
+    {
+        buffer[i]= (unsigned char) mask[i];
+    }
+    
     *seq_rec = DEFAULT;
     int msg_esperada=0;
     if(*last_seq!=15){
@@ -58,7 +70,7 @@ int DesmontaBuffer(unsigned char buffer[],unsigned char dados[],int *tipo,int *l
     if(head->sequencia==*last_seq){
         *tipo=head->tipo;
         *seq_rec=head->sequencia;
-        return head->tamanho;
+        return FEITO;
     }
     for (int i = 0; i < head->tamanho; i++){
         paridade^=data[i];
@@ -70,24 +82,34 @@ int DesmontaBuffer(unsigned char buffer[],unsigned char dados[],int *tipo,int *l
     }
     switch (msg_esperada){
         case 0:
-            if(head->sequencia==12 || head->sequencia==13 || head->sequencia==14 || head->sequencia==15)
+            if(head->sequencia==12 || head->sequencia==13 || head->sequencia==14 || head->sequencia==15){
+                // fprintf(stderr,"\nEAE 1==smg esperada: %d, msg recebida:%d\n",msg_esperada,head->sequencia);
                 return FEITO;
+            }
             break;
         case 1:
-            if(head->sequencia==13 || head->sequencia==14 || head->sequencia==15 || head->sequencia==0)
+            if(head->sequencia==13 || head->sequencia==14 || head->sequencia==15 || head->sequencia==0){
+                // fprintf(stderr,"\nEAE PORRA2\n");
                 return FEITO;
+            }
             break;
         case 2:
-            if(head->sequencia==14 || head->sequencia==15 || head->sequencia==0 || head->sequencia==1)
+            if(head->sequencia==14 || head->sequencia==15 || head->sequencia==0 || head->sequencia==1){
+                // fprintf(stderr,"\nEAE PORRA3\n");
                 return FEITO;
+            }
             break;
         case 3:
-            if(head->sequencia==15 || head->sequencia==0 || head->sequencia==1 || head->sequencia==2)
+            if(head->sequencia==15 || head->sequencia==0 || head->sequencia==1 || head->sequencia==2){
+                // fprintf(stderr,"\nEAE PORRA4\n");
                 return FEITO;
+            }
             break;
         default:
-            if(head->sequencia<msg_esperada && head->sequencia>=msg_esperada-4)
+            if(head->sequencia<msg_esperada && head->sequencia>=msg_esperada-4){
+                // fprintf(stderr,"\nEAE 5==smg esperada: %d, msg recebida:%d\n",msg_esperada,head->sequencia);
                 return FEITO;
+            }
             break;
     }
     if(head->sequencia!=msg_esperada){
@@ -106,15 +128,6 @@ int DesmontaBuffer(unsigned char buffer[],unsigned char dados[],int *tipo,int *l
     return head->tamanho;
 }
 
-// void windows_send(char *buffer, int size){
-
-
-// }
-
-// void file_reader(char *arquivo, char *buffer, int size){
-
-
-// }
 
 void limpa_string(unsigned char input[],int n){
     memset(input,0,n);
