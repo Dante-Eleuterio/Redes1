@@ -260,6 +260,131 @@ void ls_command(int tipo,unsigned char data[]){
   system("rm -f .dados.txt");
 }
 
+void put_command(int tipo,unsigned char data[]){
+  FILE* arq ;
+  unsigned long buffer[BYTES];
+  unsigned char aux[63];
+  unsigned char file[63];
+  int tipo_recebido=DEFAULT;
+  int recebeu=0;
+  int window=0;
+  int size=0;
+  int ret =0;
+  memcpy(file,data,63);
+  if(dados.sequencia==15)
+    dados.sequencia=0;
+  else
+    dados.sequencia++;
+  constroi_buffer(dados.soquete,dados.sequencia,aux,OK,0);
+  do{
+    memset(buffer,0,BYTES);
+    dados.buflen=recv(dados.soquete,buffer,sizeof(unsigned long)*BYTES,0);
+    fprintf(stderr,"%d\n",tipo_recebido);
+    if(errno!=11 && dados.buflen<0){
+      fprintf(stderr,"error in readind recv function\n");
+      fprintf(stderr,"%s\n",strerror(errno));
+      exit(-1);
+    }
+    if(buffer[0]==126){
+      size=DesmontaBuffer(buffer,aux,&tipo_recebido,&dados.last_seq,&dados.aux);
+      if(tipo_recebido==DESCRITOR){
+        long mem_livre,tamanho=0;
+        char pwd[63];
+        tamanho= atoi(aux);
+        getcwd(pwd,sizeof(pwd));
+        char *bashdf = "df --output=avail --block-size=1 / | tail -n +2 > /tmp/tamanho_gb.txt";
+        system(bashdf);
+        FILE *memfree = fopen("/tmp/tamanho_gb.txt","r");
+        fscanf(memfree,"%ld",&mem_livre);
+        fclose(memfree);
+        system("rm /tmp/tamanho_gb.txt");
+        if (dados.sequencia==15)
+            dados.sequencia=0;
+        else
+            dados.sequencia++;
+        if(tamanho>mem_livre){
+          limpa_string(aux,63);
+          aux[0]='M';
+          fprintf(stderr,"Nao ha memoria o suficiente para a transferencia\n");
+          constroi_buffer(dados.soquete,dados.sequencia,aux,ERRO,1);
+          return;
+        }
+        else{
+          limpa_string(aux,63);
+          constroi_buffer(dados.soquete,dados.sequencia,aux,OK,0);
+          recebeu=1;
+        }
+      }
+    }
+  }while(!recebeu);
+
+  arq = fopen (file, "w") ;
+  
+  while(tipo_recebido!=FIM){
+    while(tipo_recebido!=FIM){
+        limpa_string(aux,63);
+        memset(buffer,0,BYTES);
+        errno=0;
+        dados.buflen=recv(dados.soquete,buffer,sizeof(unsigned long)*BYTES,0);
+        if(errno!=11 && dados.buflen<0){
+            fprintf(stderr,"error in reading recv function\n");
+            fprintf(stderr,"%s\n",strerror(errno));
+            exit(-1);
+        }
+        if(errno!=11 && buffer[0]==126){
+          size=DesmontaBuffer(buffer,aux,&tipo_recebido,&dados.last_seq,&dados.aux);
+          if(size!=FEITO){
+              if(tipo_recebido==NACK){
+                  dados.tentativas=0;
+                  window=0;
+                  memset(buffer,0,BYTES);
+                  if(dados.last_seq==15)
+                      data[0]=0;
+                  else
+                      data[0]=dados.last_seq+1;
+                  tipo=NACK;
+                  constroi_buffer(dados.soquete,dados.sequencia,data,tipo,1);
+                  break;
+              }
+              
+              if(tipo_recebido==FIM){
+                  window=0;
+                  memset(buffer,0,BYTES);
+                  data[0]=dados.last_seq;
+                  if (dados.sequencia==15)
+                      dados.sequencia=0;
+                  else
+                      dados.sequencia++;
+                  tipo=ACK;
+                  constroi_buffer(dados.soquete,dados.sequencia,data,tipo,1);
+                  fprintf(stderr,"\n");
+              }
+
+              if(tipo_recebido==MOSTRA){
+                  window++;
+                  dados.tentativas=0;
+                  ret = fwrite (aux, size,1 , arq) ;
+                  if(window==4){
+                      window=0;
+                      memset(buffer,0,BYTES);
+                      data[0]=dados.last_seq;
+                      if (dados.sequencia==15)
+                          dados.sequencia=0;
+                      else
+                          dados.sequencia++;
+                      tipo=ACK;
+                      constroi_buffer(dados.soquete,dados.sequencia,data,tipo,1);
+                  }
+              }
+          } 
+        } 
+    }
+    fprintf(stderr, "ok\n");
+  }
+  fclose(arq);
+}
+
+
 void get_command(int tipo,unsigned char data[]){
   if(access(data,F_OK)==0){
     unsigned char aux[16];
@@ -277,7 +402,7 @@ void get_command(int tipo,unsigned char data[]){
       constroi_buffer(dados.soquete,dados.sequencia,aux,DESCRITOR,16);
       do{
         memset(buffer,0,BYTES);
-        dados.buflen=recv(dados.soquete,buffer,sizeof(unsigned long)*BYTES,0);
+          dados.buflen=recv(dados.soquete,buffer,sizeof(unsigned long)*BYTES,0);
         if(errno!=11 && dados.buflen<0){
           fprintf(stderr,"error in readind recv function\n");
           fprintf(stderr,"%s\n",strerror(errno));
@@ -350,7 +475,7 @@ void trata_tipo(int tipo,unsigned char data[]){
       get_command(tipo,data);
     break;
   case PUT:
-
+      put_command(tipo,data);
     break;
   default:
     break;
