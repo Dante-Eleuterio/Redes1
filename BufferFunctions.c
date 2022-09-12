@@ -35,14 +35,28 @@ void constroi_buffer(int soquete,int sequencia,unsigned char input[],int tipo,in
         paridade^=sendbuff[i];
     }
     sendbuff[BYTES-1]=paridade;
-    // fprintf(stderr,"\nenviando\n");
+    //fprintf(stderr,"\nenviando\n");
     // imprime_buffer(head);
-    // fprintf(stderr,"\n");
-    sendto(soquete,sendbuff,BYTES,0,NULL,0);
+    //fprintf(stderr,"\n");
+    unsigned long mask[BYTES];
+    memset(mask,-1,sizeof(unsigned long) *BYTES);
+    for (int i = 0; i < BYTES; i++)
+    {
+        mask[i]=(unsigned long)sendbuff[i];
+    }
+    
+    usleep(0); //NÃO APAGAR
+    send(soquete,mask,sizeof(unsigned long)*BYTES,0);
     free(sendbuff);
 }
 
-int DesmontaBuffer(unsigned char buffer[],unsigned char dados[],int *tipo,int *last_seq,int *seq_rec){
+int DesmontaBuffer(unsigned long mask[],unsigned char dados[],int *tipo,int *last_seq,int *seq_rec){
+    unsigned char buffer[BYTES];
+    for (int i = 0; i < BYTES; i++)
+    {
+        buffer[i] = (unsigned char) mask[i];
+    }
+    
     *seq_rec = DEFAULT;
     int msg_esperada=0;
     if(*last_seq!=15){
@@ -58,7 +72,7 @@ int DesmontaBuffer(unsigned char buffer[],unsigned char dados[],int *tipo,int *l
     if(head->sequencia==*last_seq){
         *tipo=head->tipo;
         *seq_rec=head->sequencia;
-        return head->tamanho;
+        return FEITO;
     }
     for (int i = 0; i < head->tamanho; i++){
         paridade^=data[i];
@@ -86,11 +100,11 @@ int DesmontaBuffer(unsigned char buffer[],unsigned char dados[],int *tipo,int *l
                 return FEITO;
             break;
         default:
-            if(head->sequencia<msg_esperada && head->sequencia>=msg_esperada-4)
+            if(msg_esperada-4 <= head->sequencia && head->sequencia < msg_esperada)
                 return FEITO;
             break;
     }
-    if(head->sequencia!=msg_esperada){
+    if(head->sequencia != msg_esperada){
         fprintf(stderr,"%d  %d  %d  %d\n",head->sequencia, msg_esperada, paridade, buffer[BYTES-1]);
         *tipo=NACK;
         return DEFAULT;
