@@ -35,8 +35,8 @@ void constroi_buffer(int soquete,int sequencia,unsigned char input[],int tipo,in
         paridade^=sendbuff[i];
     }
     sendbuff[BYTES-1]=paridade;
-    //fprintf(stderr,"\nenviando\n");
-    // imprime_buffer(head);
+    // fprintf(stderr,"\nenviando\n");
+     imprime_buffer(head);
     // fprintf(stderr,"\n");
     unsigned long mask[BYTES];
     memset(mask,-1,sizeof(unsigned long)*BYTES);

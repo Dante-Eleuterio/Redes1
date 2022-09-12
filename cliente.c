@@ -66,13 +66,208 @@ int retorna_tipo(unsigned char buffer[],int *args_ls,unsigned char dir[]){
         strncpy(dir,arg1,63);
         return GET;
     }
+    if(!strncmp("put",cmd,3)){
+        strncpy(dir,arg1,63);
+        return PUT;
+    }
     else
         return 0;
+}
+void file_reader(unsigned char arq[]){
+    FILE *fileptr;
+    long filelen;
+    int size=0;
+    int FIM_ENVIADO=0;
+    int msgs=0;
+    int window=0;
+    int count=0;
+    int tipo_recebido=DEFAULT;
+    int sqc=0;
+    int sqc_recv=0;
+    int old_count=0;
+    int old_filelen=0;
+    unsigned char placeholder[63];
+    unsigned char parcela[63];
+    unsigned long buffer[BYTES];
+
+    fileptr = fopen(arq,"rb");
+    fseek(fileptr,0,SEEK_END);
+    filelen=ftell(fileptr);
+    rewind(fileptr);
+    while(1){
+    sqc=dados.sequencia;
+    old_count=count;
+    old_filelen=filelen;    
+    while(filelen>0 && window<4){
+        limpa_string(parcela,63);
+        if(filelen>=63){
+        fread(parcela,sizeof(char),63,fileptr);
+        size=63;
+        count+=63;
+        filelen-=63;
+        }
+        else{
+        fread(parcela,sizeof(char),filelen,fileptr);
+        size=filelen;
+        count+=filelen;
+        filelen-=filelen;
+        }
+        window++;
+        if(dados.sequencia==15)
+        dados.sequencia=0;
+        else
+        dados.sequencia++;
+        fprintf(stderr, "Enviando %d\n", dados.sequencia);
+        constroi_buffer(dados.soquete,dados.sequencia,parcela,MOSTRA,size);
+        size=0;
+    }
+    if(window<4 && filelen<=0){
+        if(dados.sequencia==15)
+        dados.sequencia=0;
+        else
+        dados.sequencia++;
+        FIM_ENVIADO=1;
+        constroi_buffer(dados.soquete,dados.sequencia,parcela,FIM,0);
+    }
+    window=0;
+    while(1){
+        errno=0;
+        memset(buffer,0,BYTES);
+        
+        dados.buflen=recv(dados.soquete,buffer,sizeof(unsigned long)*BYTES,0);
+        if(errno!=11 && dados.buflen<0){
+        fprintf(stderr,"error in reading recv function\n");
+        exit(-1);
+        }
+        if(errno==11){
+        fprintf(stderr,"TIMEOUT\n");
+        dados.tentativas++;
+        FIM_ENVIADO=0;
+        filelen=old_filelen;
+        dados.sequencia=sqc;
+        fprintf(stderr,"ftell: %ld count:%d\n",ftell(fileptr),count);
+        fseek(fileptr,-(count-old_count),SEEK_CUR);
+        count=old_count;
+        fprintf(stderr,"ftell: %ld count:%d\n",ftell(fileptr),count);
+        break;
+        }
+
+        if(buffer[0]==126){
+        sqc_recv=DesmontaBuffer(buffer,placeholder,&tipo_recebido,&dados.last_seq,&dados.aux);  
+        if(sqc_recv!=DEFAULT){
+            if(tipo_recebido==ACK && sqc_recv==dados.sequencia){
+            fprintf(stderr, "Recebi ACK\n");
+            if(FIM_ENVIADO){
+                fclose(fileptr);
+                fprintf(stderr,"caiu fora 1\n");
+                return;
+            }
+            break;
+            }
+
+            if(tipo_recebido==NACK || (tipo_recebido==ACK && sqc_recv!=dados.sequencia)){
+            fprintf(stderr,"NACK\n");
+            FIM_ENVIADO=0;
+            filelen=old_filelen;
+            dados.sequencia=sqc;
+            fseek(fileptr,-(count-old_count),SEEK_CUR);
+            count=old_count;
+            break;
+            }
+        }
+        } else fprintf(stderr,"Recebi um protocolo invalido\n");
+    }
+    } 
+    fclose(fileptr);
+    fprintf(stderr,"caiu fora 2\n");
+
+}        
+
+void put(unsigned char input[],int tipo){
+    if(access(input,F_OK)==0){
+        unsigned char aux[16];
+        unsigned char aux2[63];
+        unsigned long buffer[BYTES];
+        int tipo_recebido=DEFAULT;
+        struct stat status;
+        stat(input,&status);
+        if(S_ISREG(status.st_mode)){
+            if(dados.sequencia==15)
+                dados.sequencia=0;
+            else
+                dados.sequencia++;
+            constroi_buffer(dados.soquete,dados.sequencia,input,PUT,strnlen(input,63));
+            do{
+                memset(buffer,0,BYTES);
+                dados.buflen=recv(dados.soquete,buffer,sizeof(unsigned long)*BYTES,0);
+                if(errno!=11 && dados.buflen<0){
+                fprintf(stderr,"error in readind recv function\n");
+                fprintf(stderr,"%s\n",strerror(errno));
+                exit(-1);
+                }
+                if(buffer[0]==126){
+                    DesmontaBuffer(buffer,aux2,&tipo_recebido,&dados.last_seq,&dados.aux);
+                    if(tipo_recebido==OK){
+                        sprintf(aux,"%ld",status.st_size);
+                        if(dados.sequencia==15)
+                            dados.sequencia=0;
+                        else
+                            dados.sequencia++;
+                        constroi_buffer(dados.soquete,dados.sequencia,aux,DESCRITOR,16);
+                        break;
+                    }
+                }
+            }while(1);
+            do{
+                memset(buffer,0,BYTES);
+                dados.buflen=recv(dados.soquete,buffer,sizeof(unsigned long)*BYTES,0);
+                if(errno!=11 && dados.buflen<0){
+                    fprintf(stderr,"error in readind recv function\n");
+                    fprintf(stderr,"%s\n",strerror(errno));
+                    exit(-1);
+                }
+                if(buffer[0]==126){
+                    DesmontaBuffer(buffer,aux2,&tipo_recebido,&dados.last_seq,&dados.aux);
+                    if(tipo_recebido==ERRO){
+                       switch (aux[0])
+                        {
+                        case 'B':
+                            fprintf(stderr,"Sem permissao de Acesso\n");
+                            break;
+                        case 'M':
+                            fprintf(stderr,"Sem memoria disponivel\n");
+                            break;
+                        default:
+                            fprintf(stderr,"Erro Desconhecido\n");
+                            break;
+                        }
+                        return;
+                    }
+                    if(tipo_recebido==OK){
+                        file_reader(input);    
+                        return;
+                    }
+                }
+            }while(1); 
+        }
+    }else{
+        switch (errno){
+            case EACCES:
+            case EFAULT:
+                fprintf(stderr,"Sem permissao de Acesso\n");
+                break;
+            case ENOENT:
+                fprintf(stderr,"Arquivo inexistente\n");
+                break;
+            default:
+                fprintf(stderr,"Erro desconhecido\n");
+            break;
+        }
+    }
 }
 
 void get(unsigned char input[],int tipo){
     FILE* arq ;
-    arq = fopen (input, "w") ;
     int ret=0;
     int window=0;
     unsigned long buffer[BYTES];
@@ -147,6 +342,7 @@ void get(unsigned char input[],int tipo){
             }
         }
     }while(errno==11 ||!recebeu);
+    arq = fopen (input, "w") ;
 
     while(tipo_recebido!=FIM){
         while(tipo_recebido!=FIM){
@@ -228,9 +424,8 @@ void get(unsigned char input[],int tipo){
                 } 
             } 
         }
-        fprintf(stderr, "ok\n");
-        
     }
+    fprintf(stderr, "ok\n");
     fclose(arq);
 }
 
@@ -534,6 +729,9 @@ void envia(unsigned char buffer[63]){
                 break;
             case GET:
                 get(dir,tipo);
+                break;
+            case PUT:
+                put(dir,tipo);
                 break;
             default:
                 break;
