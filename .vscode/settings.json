@@ -17,6 +17,7 @@
         "stat.h": "c",
         "bufferfunctions.h": "c",
         "time.h": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "math.h": "c"
     }
 }
