@@ -69,7 +69,7 @@ int DesmontaBuffer(unsigned long mask[],unsigned char dados[],int *tipo,int *las
     if(head->sequencia==*last_seq){
         *tipo=head->tipo;
         *seq_rec=head->sequencia;
-        return FEITO;
+        return 101;
     }
     for (int i = 0; i < head->tamanho; i++){
         paridade^=data[i];

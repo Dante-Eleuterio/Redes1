@@ -117,7 +117,6 @@ void mkdir_command(int tipo,unsigned char data[]){
 //Recebe o comando ls, interpreta e envia arquivo contendo a listagem do diretório
 
 void file_reader(unsigned char arq[]){
-  fprintf(stderr,"entrou aqui\n");
   FILE *fileptr;
   long filelen;
   int size=0;
@@ -139,12 +138,10 @@ void file_reader(unsigned char arq[]){
   filelen=ftell(fileptr);
   rewind(fileptr);
   while(1){
-    // fprintf(stderr,"entrou while principal\n");
     sqc=dados.sequencia;
     old_count=count;
     old_filelen=filelen;    
     while(filelen>0 && window<4){
-      // fprintf(stderr,"entrou while da janela\n");
       limpa_string(parcela,63);
       if(filelen>=63){
         fread(parcela,sizeof(char),63,fileptr);
@@ -163,11 +160,9 @@ void file_reader(unsigned char arq[]){
         dados.sequencia=0;
       else
         dados.sequencia++;
-      fprintf(stderr, "Enviando %d\n", dados.sequencia);
       constroi_buffer(dados.soquete,dados.sequencia,parcela,MOSTRA,size);
       size=0;
     }
-    // fprintf(stderr,"saiu while da janela\n");
     if(window<4 && filelen<=0){
       if(dados.sequencia==15)
         dados.sequencia=0;
@@ -179,7 +174,6 @@ void file_reader(unsigned char arq[]){
     window=0;
     while(1){
       errno=0;
-      // fprintf(stderr,"entrou while da resposta\n");
       memset(buffer,0,BYTES);
       
       dados.buflen=recv(dados.soquete,buffer,sizeof(unsigned long)*BYTES,0);
@@ -193,29 +187,23 @@ void file_reader(unsigned char arq[]){
         FIM_ENVIADO=0;
         filelen=old_filelen;
         dados.sequencia=sqc;
-        fprintf(stderr,"ftell: %ld count:%d\n",ftell(fileptr),count);
         fseek(fileptr,-(count-old_count),SEEK_CUR);
         count=old_count;
-        fprintf(stderr,"ftell: %ld count:%d\n",ftell(fileptr),count);
         break;
       }
 
       if(buffer[0]==126){
-        // fprintf(stderr,"entrou if do desmonta\n");
         sqc_recv=DesmontaBuffer(buffer,placeholder,&tipo_recebido,&dados.last_seq,&dados.aux);  
         if(sqc_recv!=DEFAULT){
           if(tipo_recebido==ACK && sqc_recv==dados.sequencia){
-            fprintf(stderr, "Recebi ACK\n");
             if(FIM_ENVIADO){
               fclose(fileptr);
-              fprintf(stderr,"caiu fora 1\n");
               return;
             }
             break;
           }
 
           if(tipo_recebido==NACK || (tipo_recebido==ACK && sqc_recv!=dados.sequencia)){
-            fprintf(stderr,"NACK\n");
             FIM_ENVIADO=0;
             filelen=old_filelen;
             dados.sequencia=sqc;
@@ -224,15 +212,10 @@ void file_reader(unsigned char arq[]){
             break;
           }
         }
-        else
-          fprintf(stderr,"DEU MERDA AQUI \n");
-      } else fprintf(stderr,"Recebi um protocolo invalido\n");
+      } 
     }
-    // fprintf(stderr,"saiu while da resposta\n");
   } 
   fclose(fileptr);
-  fprintf(stderr,"caiu fora 2\n");
-
 }        
 
 
@@ -255,7 +238,6 @@ void ls_command(int tipo,unsigned char data[]){
     wait(&status);
   //Envio do arquivo contendo o ls
   file_reader(".dados.txt");
-  fprintf(stderr,"voltou pra ls_command\n");
 
   system("rm -f .dados.txt");
 }
@@ -279,7 +261,6 @@ void put_command(int tipo,unsigned char data[]){
   do{
     memset(buffer,0,BYTES);
     dados.buflen=recv(dados.soquete,buffer,sizeof(unsigned long)*BYTES,0);
-    fprintf(stderr,"%d\n",tipo_recebido);
     if(errno!=11 && dados.buflen<0){
       fprintf(stderr,"error in readind recv function\n");
       fprintf(stderr,"%s\n",strerror(errno));
@@ -305,7 +286,6 @@ void put_command(int tipo,unsigned char data[]){
         if(tamanho>mem_livre){
           limpa_string(aux,63);
           aux[0]='M';
-          fprintf(stderr,"Nao ha memoria o suficiente para a transferencia\n");
           constroi_buffer(dados.soquete,dados.sequencia,aux,ERRO,1);
           return;
         }
@@ -333,6 +313,18 @@ void put_command(int tipo,unsigned char data[]){
         }
         if(errno!=11 && buffer[0]==126){
           size=DesmontaBuffer(buffer,aux,&tipo_recebido,&dados.last_seq,&dados.aux);
+          if(size==101){
+            window=0;
+            memset(buffer,0,BYTES);
+            data[0]=dados.last_seq;
+            if (dados.sequencia==15)
+                dados.sequencia=0;
+            else
+                dados.sequencia++;
+            tipo=ACK;
+            constroi_buffer(dados.soquete,dados.sequencia,data,tipo,1);
+            break;
+          }
           if(size!=FEITO){
               if(tipo_recebido==NACK){
                   dados.tentativas=0;
@@ -379,7 +371,6 @@ void put_command(int tipo,unsigned char data[]){
           } 
         } 
     }
-    fprintf(stderr, "ok\n");
   }
   fclose(arq);
 }
@@ -495,6 +486,7 @@ int main(){
   dados.last_seq=15;
   while(1)
   {  
+    tipo=DEFAULT;
     memset(buffer,0,BYTES);
     limpa_string(data,63);
     dados.buflen=recv(dados.soquete,buffer,sizeof(unsigned long)*BYTES,0);
