@@ -75,8 +75,10 @@ int retorna_tipo(unsigned char buffer[],int *args_ls,unsigned char dir[]){
 }
 void file_reader(unsigned char arq[]){
     FILE *fileptr;
-    long filelen;
+    double filelen;
     int size=0;
+    double total=0;
+    int percentual=100;
     int FIM_ENVIADO=0;
     int msgs=0;
     int window=0;
@@ -93,6 +95,7 @@ void file_reader(unsigned char arq[]){
     fileptr = fopen(arq,"rb");
     fseek(fileptr,0,SEEK_END);
     filelen=ftell(fileptr);
+    total=filelen;
     rewind(fileptr);
     while(1){
     sqc=dados.sequencia;
@@ -101,31 +104,30 @@ void file_reader(unsigned char arq[]){
     while(filelen>0 && window<4){
         limpa_string(parcela,63);
         if(filelen>=63){
-        fread(parcela,sizeof(char),63,fileptr);
-        size=63;
-        count+=63;
-        filelen-=63;
+            fread(parcela,sizeof(char),63,fileptr);
+            size=63;
+            count+=63;
+            filelen-=63;
         }
         else{
-        fread(parcela,sizeof(char),filelen,fileptr);
-        size=filelen;
-        count+=filelen;
-        filelen-=filelen;
+            fread(parcela,sizeof(char),filelen,fileptr);
+            size=filelen;
+            count+=filelen;
+            filelen-=filelen;
         }
         window++;
         if(dados.sequencia==15)
-        dados.sequencia=0;
+            dados.sequencia=0;
         else
-        dados.sequencia++;
-        fprintf(stderr, "Enviando %d\n", dados.sequencia);
+            dados.sequencia++;
         constroi_buffer(dados.soquete,dados.sequencia,parcela,MOSTRA,size);
         size=0;
     }
     if(window<4 && filelen<=0){
         if(dados.sequencia==15)
-        dados.sequencia=0;
+            dados.sequencia=0;
         else
-        dados.sequencia++;
+            dados.sequencia++;
         FIM_ENVIADO=1;
         constroi_buffer(dados.soquete,dados.sequencia,parcela,FIM,0);
     }
@@ -136,50 +138,49 @@ void file_reader(unsigned char arq[]){
         
         dados.buflen=recv(dados.soquete,buffer,sizeof(unsigned long)*BYTES,0);
         if(errno!=11 && dados.buflen<0){
-        fprintf(stderr,"error in reading recv function\n");
-        exit(-1);
+            fprintf(stderr,"error in reading recv function\n");
+            exit(-1);
         }
         if(errno==11){
-        fprintf(stderr,"TIMEOUT\n");
-        dados.tentativas++;
-        FIM_ENVIADO=0;
-        filelen=old_filelen;
-        dados.sequencia=sqc;
-        fprintf(stderr,"ftell: %ld count:%d\n",ftell(fileptr),count);
-        fseek(fileptr,-(count-old_count),SEEK_CUR);
-        count=old_count;
-        fprintf(stderr,"ftell: %ld count:%d\n",ftell(fileptr),count);
-        break;
-        }
-
-        if(buffer[0]==126){
-        sqc_recv=DesmontaBuffer(buffer,placeholder,&tipo_recebido,&dados.last_seq,&dados.aux);  
-        if(sqc_recv!=DEFAULT){
-            if(tipo_recebido==ACK && sqc_recv==dados.sequencia){
-            fprintf(stderr, "Recebi ACK\n");
-            if(FIM_ENVIADO){
-                fclose(fileptr);
-                fprintf(stderr,"caiu fora 1\n");
-                return;
-            }
-            break;
-            }
-
-            if(tipo_recebido==NACK || (tipo_recebido==ACK && sqc_recv!=dados.sequencia)){
-            fprintf(stderr,"NACK\n");
+            fprintf(stderr,"\nTIMEOUT\n");
             FIM_ENVIADO=0;
             filelen=old_filelen;
             dados.sequencia=sqc;
             fseek(fileptr,-(count-old_count),SEEK_CUR);
             count=old_count;
             break;
+        }
+
+        if(buffer[0]==126){
+            sqc_recv=DesmontaBuffer(buffer,placeholder,&tipo_recebido,&dados.last_seq,&dados.aux);  
+            if(sqc_recv!=DEFAULT){
+                if(tipo_recebido==ACK && sqc_recv==dados.sequencia){
+                    if(floor((filelen/total)*100)!=percentual){
+                        percentual--;
+                        fprintf(stderr, "\r%.0f%c",floor((filelen/total)*100),37);
+                        fflush(stderr);
+                    }
+                if(FIM_ENVIADO){
+                    fclose(fileptr);
+                    fprintf(stderr,"\n");
+                    return;
+                }
+                break;
+                }
+
+                if(tipo_recebido==NACK || (tipo_recebido==ACK && sqc_recv!=dados.sequencia)){
+                FIM_ENVIADO=0;
+                filelen=old_filelen;
+                dados.sequencia=sqc;
+                fseek(fileptr,-(count-old_count),SEEK_CUR);
+                count=old_count;
+                break;
+                }
             }
         }
-        } else fprintf(stderr,"Recebi um protocolo invalido\n");
     }
     } 
     fclose(fileptr);
-    fprintf(stderr,"caiu fora 2\n");
 
 }        
 
@@ -250,6 +251,10 @@ void put(unsigned char input[],int tipo){
                 }
             }while(1); 
         }
+        else{
+            fprintf(stderr,"Arquivo nao regular\n");
+            return;
+        }
     }else{
         switch (errno){
             case EACCES:
@@ -268,6 +273,8 @@ void put(unsigned char input[],int tipo){
 
 void get(unsigned char input[],int tipo){
     FILE* arq ;
+    int percentual=100;
+    double filelen=0;
     int ret=0;
     int window=0;
     unsigned long buffer[BYTES];
@@ -275,6 +282,7 @@ void get(unsigned char input[],int tipo){
     int tipo_recebido=DEFAULT;
     int size=0;
     int recebeu=0;
+    double mem_livre,tamanho=0;
     if (dados.sequencia==15)
         dados.sequencia=0;
     else
@@ -293,15 +301,14 @@ void get(unsigned char input[],int tipo){
         if(errno!=11 && buffer[0]==126){
             size=DesmontaBuffer(buffer,aux,&tipo_recebido,&dados.last_seq,&dados.aux);
             if(tipo_recebido==DESCRITOR){
-                fprintf(stderr,"oi mundo\n");   
-                long mem_livre,tamanho=0;
                 char pwd[63];
                 tamanho= atoi(aux);
+                filelen=tamanho;
                 getcwd(pwd,sizeof(pwd));
                 char *bashdf = "df --output=avail --block-size=1 / | tail -n +2 > /tmp/tamanho_gb.txt";
                 system(bashdf);
                 FILE *memfree = fopen("/tmp/tamanho_gb.txt","r");
-                fscanf(memfree,"%ld",&mem_livre);
+                fscanf(memfree,"%lf",&mem_livre);
                 fclose(memfree);
                 system("rm /tmp/tamanho_gb.txt");
                 if (dados.sequencia==15)
@@ -349,7 +356,6 @@ void get(unsigned char input[],int tipo){
             limpa_string(aux,63);
             memset(buffer,0,BYTES);
             errno=0;
-            // fprintf(stderr, "lendo proxima\n");
             dados.buflen=recv(dados.soquete,buffer,sizeof(unsigned long)*BYTES,0);
             if(errno!=11 && dados.buflen<0){
                 fprintf(stderr,"error in reading recv function\n");
@@ -357,20 +363,20 @@ void get(unsigned char input[],int tipo){
                 exit(-1);
             }
 
-            // fprintf(stderr, "errno = %d buffer = ", errno);
-            // for (int i = 0; i < dados.buflen; i++) {
-            //     unsigned char d = buffer[i];
-            //     if (d < 0x20 || d > 0xf0) {
-            //         fprintf(stderr,"[%d]", d);
-            //     } else {
-            //         fprintf(stderr,"'%c'", d);
-            //     }
-            // }
-            // fprintf(stderr, "\n");
-
             if(errno!=11 && buffer[0]==126){
                 size=DesmontaBuffer(buffer,aux,&tipo_recebido,&dados.last_seq,&dados.aux);
-                // fprintf(stderr, "seq = %d tipo recebido = %d size = %d\n", dados.last_seq, tipo_recebido, size);
+                if(size==101){
+                    window=0;
+                    memset(buffer,0,BYTES);
+                    input[0]=dados.last_seq;
+                    if (dados.sequencia==15)
+                        dados.sequencia=0;
+                    else
+                        dados.sequencia++;
+                    tipo=ACK;
+                    constroi_buffer(dados.soquete,dados.sequencia,input,tipo,1);
+                    break;
+                }
                 if(size!=FEITO){
                     
                     if(tipo_recebido==NACK){
@@ -381,10 +387,7 @@ void get(unsigned char input[],int tipo){
                             input[0]=0;
                         else
                             input[0]=dados.last_seq+1;
-                        // if (dados.sequencia==15)
-                        //     dados.sequencia=0;
-                        // else
-                        //     dados.sequencia++;
+                      
                         tipo=NACK;
                         constroi_buffer(dados.soquete,dados.sequencia,input,tipo,1);
                         break;
@@ -407,7 +410,12 @@ void get(unsigned char input[],int tipo){
                         window++;
                         dados.tentativas=0;
                         ret = fwrite (aux, size,1 , arq) ;
-
+                        filelen-=size;
+                        if(floor((filelen/tamanho)*100)!=percentual){
+                            percentual--;
+                            fprintf(stderr, "\r%.0f%c",floor((filelen/tamanho)*100),37);
+                            fflush(stderr);
+                        }
                         if(window==4){
                             window=0;
                             memset(buffer,0,BYTES);
@@ -417,7 +425,6 @@ void get(unsigned char input[],int tipo){
                             else
                                 dados.sequencia++;
                             tipo=ACK;
-                            // fprintf(stderr, "Enviando ACK\n");
                             constroi_buffer(dados.soquete,dados.sequencia,input,tipo,1);
                         }
                     }
@@ -425,7 +432,6 @@ void get(unsigned char input[],int tipo){
             } 
         }
     }
-    fprintf(stderr, "ok\n");
     fclose(arq);
 }
 
@@ -443,8 +449,6 @@ void list_local(int *args_ls){
     *args_ls=0;
 }
 void list_remoto(unsigned char input[],int *args_ls,int tipo){
-    // FILE* arq ;
-    // arq = fopen ("rickrollcopia.mp3", "w") ;
     int ret=0;
     int window=0;
     input[0]=*args_ls;
@@ -463,7 +467,6 @@ void list_remoto(unsigned char input[],int *args_ls,int tipo){
             limpa_string(aux,63);
             memset(buffer,0,BYTES);
             errno=0;
-            // fprintf(stderr, "lendo proxima\n");
             dados.buflen=recv(dados.soquete,buffer,sizeof(unsigned long)*BYTES,0);
             if(errno!=11 && dados.buflen<0){
                 fprintf(stderr,"error in reading recv function\n");
@@ -471,20 +474,8 @@ void list_remoto(unsigned char input[],int *args_ls,int tipo){
                 exit(-1);
             }
 
-            // fprintf(stderr, "errno = %d buffer = ", errno);
-            // for (int i = 0; i < dados.buflen; i++) {
-            //     unsigned char d = buffer[i];
-            //     if (d < 0x20 || d > 0xf0) {
-            //         fprintf(stderr,"[%d]", d);
-            //     } else {
-            //         fprintf(stderr,"'%c'", d);
-            //     }
-            // }
-            // fprintf(stderr, "\n");
-
             if(errno!=11 && buffer[0]==126){
                 size=DesmontaBuffer(buffer,aux,&tipo_recebido,&dados.last_seq,&dados.aux);
-                // fprintf(stderr, "seq = %d tipo recebido = %d size = %d\n", dados.last_seq, tipo_recebido, size);
                 if(size!=FEITO){
                     if(tipo_recebido==NACK){
                         dados.tentativas=0;
@@ -494,10 +485,7 @@ void list_remoto(unsigned char input[],int *args_ls,int tipo){
                             input[0]=0;
                         else
                             input[0]=dados.last_seq+1;
-                        // if (dados.sequencia==15)
-                        //     dados.sequencia=0;
-                        // else
-                        //     dados.sequencia++;
+                       
                         tipo=NACK;
                         constroi_buffer(dados.soquete,dados.sequencia,input,tipo,1);
                         break;
@@ -519,7 +507,6 @@ void list_remoto(unsigned char input[],int *args_ls,int tipo){
                     if(tipo_recebido==MOSTRA){
                         window++;
                         dados.tentativas=0;
-                        // ret = fwrite (aux, size,1 , arq) ;
                         fprintf(stderr,"%s",aux);
                         if(window==4){
                             window=0;
@@ -530,19 +517,15 @@ void list_remoto(unsigned char input[],int *args_ls,int tipo){
                             else
                                 dados.sequencia++;
                             tipo=ACK;
-                            // fprintf(stderr, "Enviando ACK\n");
                             constroi_buffer(dados.soquete,dados.sequencia,input,tipo,1);
                         }
                     }
                 } 
             } 
         }
-        // fprintf(stderr, "ok\n");
-        
     }
     dados.tentativas=0;
     tipo_recebido=DEFAULT; 
-    // fclose(arq);
 }
 void cd_remoto(unsigned char dir[],int tipo){
     unsigned long buffer[BYTES];
@@ -598,11 +581,6 @@ void cd_remoto(unsigned char dir[],int tipo){
             memset(buffer,0,BYTES);
         }
         if(tipo_recebido==ERRO){
-            break;
-        }
-        if(dados.tentativas==2){
-            dados.tentativas=0;
-            fprintf(stderr,"Tempo de espera excedido. Por favor tente novamente\n");
             break;
         }
         if(tipo_recebido!=OK){
@@ -669,11 +647,6 @@ void mkdir_remoto(unsigned char dir[],int tipo){
             }
         }
         if(tipo_recebido==ERRO){
-            break;
-        }
-        if(dados.tentativas==2){
-            dados.tentativas=0;
-            fprintf(stderr,"Tempo de espera excedido. Por favor tente novamente\n");
             break;
         }
         if(tipo_recebido!=OK){

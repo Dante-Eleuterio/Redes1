@@ -19,6 +19,7 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/wait.h>
+#include <math.h>
 //TIPOS DE MENSAGENS
   #define OK 1
   #define NACK 2
